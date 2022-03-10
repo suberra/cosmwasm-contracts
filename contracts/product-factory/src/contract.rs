@@ -66,9 +66,9 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CreateProduct { product_info } => {
-            execute_create_product(deps, env, info, product_info)
-        }
+        ExecuteMsg::CreateProduct {
+            product_info,
+        } => execute_create_product(deps, env, info, product_info),
         ExecuteMsg::UpdateConfig {
             new_owner,
             new_product_code_id,
@@ -197,7 +197,6 @@ pub fn execute_create_product(
         unit_amount: param.unit_amount,
         initial_amount: param.initial_amount,
         unit_interval_hour: param.unit_interval_hour,
-        max_amount_chargeable: param.max_amount_chargeable,
         additional_grace_period_hour: param.additional_grace_period_hour,
         uri: param.uri,
         owner: info.sender.to_string(),

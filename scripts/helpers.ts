@@ -199,7 +199,7 @@ export async function performTransaction(terra: LCDClient, wallet: Wallet, msgs:
   } catch (err: any | AxiosError) {
     if (axios.isAxiosError(err)) {
       // Access to config, request, and response
-      throw new Error(err.response?.data.error);
+      throw new Error(err.response?.data.message || err.response?.data.error);
     } else {
       // Just a stock error
       throw err;

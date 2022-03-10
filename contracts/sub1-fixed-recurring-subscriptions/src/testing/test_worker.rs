@@ -22,7 +22,6 @@ fn query_can_work() {
         initial_amount: Uint256::from(123u128),
         unit_interval_hour: 720u64,
         additional_grace_period_hour: None,
-        max_amount_chargeable: Some(Uint256::from(123u128)),
         admins: Vec::new(),
         mutable: false,
         uri: "{\"image_url\": \"www.google.com\" }".to_string(),

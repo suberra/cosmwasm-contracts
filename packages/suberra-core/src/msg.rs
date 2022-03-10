@@ -30,7 +30,6 @@ pub struct ProductInstantiateMsg {
     pub unit_amount: Uint256,
     pub initial_amount: Uint256,
     pub unit_interval_hour: u64,
-    pub max_amount_chargeable: Option<Uint256>,
     pub additional_grace_period_hour: Option<u64>,
     pub uri: String,
     pub owner: String,

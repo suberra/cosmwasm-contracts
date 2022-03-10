@@ -1,0 +1,14 @@
+{
+  "jobs_registry_code_id": 37566,
+  "subwallet_code_id": 37567,
+  "product_factory_code_id": 37568,
+  "subscription_product_code_id": 37569,
+  "p2p_contract_code_id": 37570,
+  "subwallet_factory_code_id": 37571,
+  "token_stream_code_id": 37572,
+  "subwallet_factory_addr": "terra1mvde76ragnkg5pa3v34v2hf5e4ccwyflcf77gw",
+  "p2p_contract_addr": "terra1cmxmcwyxg9940g308f07m4jw408dcuyr2mjuec",
+  "token_stream_addr": "terra1uepv8jhyz5v4ntynf0mgc6ca2yyzvjweu4ty2r",
+  "jobs_registry_addr": "terra183aq36wzjua9krzxjvvpjjxmkxrxf70fvu8sjq",
+  "product_factory_addr": "terra1c466l5p3vg4axah6rzs2q4kca4mugescvudaez"
+}

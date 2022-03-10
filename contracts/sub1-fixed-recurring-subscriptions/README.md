@@ -26,7 +26,6 @@ pub struct ProductInstantiateMsg {
     pub unit_amount: Uint256,
     pub initial_amount: Uint256,
     pub unit_interval_hour: u64,
-    pub max_amount_chargeable: Option<Uint256>,
     pub additional_grace_period_hour: Option<u64>,
     pub uri: String,
     pub admins: Vec<String>,
@@ -52,25 +51,57 @@ pub struct SubscriptionInfo {
 }
 ```
 
-## Actions
+## ExecuteMsg
 
-**1. Subscribe**
+### `update_config`
 
-Called via a subwallet to subscribe to a service.
-This requires aUST allowance to be approved beforehand.
+Updates the contract variables
+* `receiver_address`: Address that will receive the revenue from product subscription
+* `additional_grace_period_hour`: Additional grace period in hours.
+* `initial_amount`: Initial amount that will be charged once the user subscribes. 1,000,000 = 1 UST
+* `uri`: Link to a JSON-formatted file that will store other product subscription details such as name and description
 
-**2. Cancel**
+```json
+{
+    "update_config" : {
+        "receiver_address" : "terra1...",
+        "additional_grace_period_hour" : 24,
+        "initial_amount" : "1000000",
+        "uri": "https://some_bucket.com/data.json"
+    }
+}
+```
+
+### `subscribe`
+
+Called via a subwallet to subscribe to a service. This requires aUST allowance to be approved beforehand.
+
+```json
+{
+    "subscribe": {}
+}
+```
+
+### `cancel`
 
 Cancels a subscription service, subscription status will still be active until cycle ends.
 Prevents further charges to be made.
 
-**3. Charge**
+
+```json
+{
+    "cancel": {}
+}
+```
+
+### `charge`
+
 Charge a particular payer who's subscription payment is dued.
 
 ```rust
-Charge {
+"charge": {
     // Subwallet address of the payer
-    payer_address: String,
+    "payer_address": "terra1...",
 }
 ```
 
@@ -78,9 +109,9 @@ Charge {
 
 **1. Get subscription detail **
 
-```rust
-Subscription {
-    subscriber: String,
+```json
+"Subscription": {
+    "subscriber": "terra1...",
 }
 ```
 

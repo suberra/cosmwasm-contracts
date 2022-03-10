@@ -116,10 +116,11 @@ async function initContract(client: Client, name: string, initMsg: object) {
 
   await linkContracts(client);
 
-  await createSubwallet(client);
-  await depositSubwallet(client);
-  await createSubscriptionProduct(client);
-  await subscribeToProduct(client);
+  // User & Merchants actions
+  // await createSubwallet(client);
+  // await depositSubwallet(client);
+  // await createSubscriptionProduct(client);
+  // await subscribeToProduct(client);
 })();
 
 //----------------------------------------------------------------------------------------
@@ -220,6 +221,8 @@ async function initContracts(client: Client) {
       anchor_market_contract: config.anchor_market_contract,
       aterra_token_addr: config.aterra_token_contract,
     });
+  } else {
+    console.log("Missing subwallet_factory dependencies", deployedState["subwallet_code_id"], config.anchor_market_contract, config.aterra_token_contract)
   }
 
   if (
@@ -228,9 +231,9 @@ async function initContracts(client: Client) {
   ) {
     await initContract(client, "product_factory", {
       product_code_id: deployedState["subscription_product_code_id"],
-      protocol_fee_bps: 100, // 1% fee
-      min_protocol_fee: "100000", // $0.1
-      min_amount_per_interval: "1000000",
+      protocol_fee_bps: 0, // 0% fee
+      min_protocol_fee: "0", // $0
+      min_amount_per_interval: "5000000", // $5
       fee_address: client.wallet.key.accAddress, // Send to self
       job_registry_address: deployedState["jobs_registry_contract"],
     });
@@ -238,10 +241,10 @@ async function initContracts(client: Client) {
 
   if (deployedState["jobs_registry_contract"]) {
     await initContract(client, "p2p", {
-      minimum_interval: 600, // 10 minutes for testing
-      minimum_amount_per_interval: "1000000",
+      minimum_interval: 3600, // 1hr for testing
+      minimum_amount_per_interval: "10000000", // $10
       job_registry_contract: deployedState["jobs_registry_contract"],
-      fee_bps: 100, // 1% fees
+      fee_bps: 0, // 0% fees
       // fee_address: client.wallet.key.accAddress, // omitted as it defaults to deployer
       max_fee: "1000000", // 1 usd
     });
