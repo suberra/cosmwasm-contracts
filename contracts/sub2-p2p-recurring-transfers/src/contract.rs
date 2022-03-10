@@ -30,9 +30,8 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-    let init_msg = msg.clone();
 
-    let job_registry_contract = match init_msg.job_registry_contract {
+    let job_registry_contract = match msg.job_registry_contract {
         Some(job_contract) => Some(deps.api.addr_validate(&job_contract)?),
         None => None,
     };
@@ -47,11 +46,11 @@ pub fn instantiate(
     }
 
     let config = Config {
-        minimum_interval: init_msg.minimum_interval,
+        minimum_interval: msg.minimum_interval,
         job_registry_contract,
         owner: info.sender.clone(),
         fee_address,
-        minimum_amount_per_interval: init_msg.minimum_amount_per_interval,
+        minimum_amount_per_interval: msg.minimum_amount_per_interval,
         max_fee: msg.max_fee.unwrap_or_else(Uint256::zero),
         fee_bps,
     };
