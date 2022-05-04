@@ -29,7 +29,8 @@ pub struct Config {
     pub unit_interval: Timestamp,
     pub unit_amount: Uint256,
     pub initial_amount: Uint256,
-    pub paused: bool,
+    pub is_paused: bool,
+    pub is_frozen: bool,
     pub uri: String,
     pub factory_address: Addr,
 }

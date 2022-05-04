@@ -52,9 +52,7 @@ pub fn execute(
             create_stream(deps, env, info, sender, receiver, token, start_at, end_at)
         }
         ExecuteMsg::Receive(msg) => receive_cw20(deps, env, info, msg),
-        ExecuteMsg::Withdraw { stream_id, amount } => {
-            withdraw_stream(deps, env, info, stream_id, amount)
-        }
+        ExecuteMsg::Withdraw { stream_id, amount } => withdraw_stream(deps, env, stream_id, amount),
         ExecuteMsg::CancelStream { stream_id } => cancel_stream(deps, env, info, stream_id),
     }
 }
@@ -192,7 +190,6 @@ pub fn create_stream(
 pub fn withdraw_stream(
     deps: DepsMut,
     env: Env,
-    info: MessageInfo,
     stream_id: u64,
     amount: Option<Uint128>,
 ) -> Result<Response, ContractError> {
@@ -201,8 +198,6 @@ pub fn withdraw_stream(
         Some(stream) => stream,
         None => return Err(ContractError::StreamNotFound {}),
     };
-
-    stream.assert_sender_or_receiver(&info.sender)?;
 
     let balance = compute_balance_of(&stream, &stream.receiver, env.block.time.seconds())?;
 

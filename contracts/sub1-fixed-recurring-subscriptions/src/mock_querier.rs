@@ -35,12 +35,21 @@ impl WasmMockQuerier {
     }
 
     // confiure new fee querier
-    pub fn with_fee(&mut self, protocol_fee_bps: u64, min_protocol_fee: Uint256) {
+    pub fn with_fee(
+        &mut self,
+        protocol_fee_bps: u64,
+        min_protocol_fee: Uint256,
+        min_amount_per_interval: Uint256,
+        min_unit_interval_hour: u64,
+    ) {
         self.fee_querier = FeeQuerier::new(
             "owner".to_string(),
+            true,
             1,
             protocol_fee_bps,
             min_protocol_fee,
+            min_amount_per_interval,
+            min_unit_interval_hour,
             "fee_address".to_string(),
             "job_registry".to_string(),
         );
@@ -50,9 +59,12 @@ impl WasmMockQuerier {
 #[derive(Clone, Default)]
 pub struct FeeQuerier {
     owner: String,
+    is_restricted: bool,
     product_code_id: u64,
     protocol_fee_bps: u64,
     min_protocol_fee: Uint256,
+    min_amount_per_interval: Uint256,
+    min_unit_interval_hour: u64,
     fee_address: String,
     job_registry_address: String,
 }
@@ -60,17 +72,23 @@ pub struct FeeQuerier {
 impl FeeQuerier {
     pub fn new(
         owner: String,
+        is_restricted: bool,
         product_code_id: u64,
         protocol_fee_bps: u64,
         min_protocol_fee: Uint256,
+        min_amount_per_interval: Uint256,
+        min_unit_interval_hour: u64,
         fee_address: String,
         job_registry_address: String,
     ) -> Self {
         FeeQuerier {
             owner,
+            is_restricted,
             product_code_id,
             protocol_fee_bps,
             min_protocol_fee,
+            min_amount_per_interval,
+            min_unit_interval_hour,
             fee_address,
             job_registry_address,
         }
@@ -101,9 +119,12 @@ impl WasmMockQuerier {
                     QueryMsg::Config {} => {
                         let config = ConfigResponse {
                             owner: self.fee_querier.owner.clone(),
+                            is_restricted: self.fee_querier.is_restricted,
                             product_code_id: self.fee_querier.product_code_id,
                             protocol_fee_bps:  self.fee_querier.protocol_fee_bps,
                             min_protocol_fee: self.fee_querier.min_protocol_fee,
+                            min_amount_per_interval: self.fee_querier.min_amount_per_interval,
+                            min_unit_interval_hour: self.fee_querier.min_unit_interval_hour,
                             fee_address: self.fee_querier.fee_address.clone(),
                             job_registry_address: self.fee_querier.job_registry_address.clone(),
                         };

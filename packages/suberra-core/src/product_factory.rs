@@ -11,6 +11,7 @@ pub struct InstantiateMsg {
     pub protocol_fee_bps: u64,
     pub min_protocol_fee: Uint256,
     pub min_amount_per_interval: Uint256,
+    pub min_unit_interval_hour: u64,
     pub fee_address: String,
     pub job_registry_address: String,
 }
@@ -25,10 +26,12 @@ pub enum ExecuteMsg {
     },
     UpdateConfig {
         new_owner: Option<String>,
+        new_is_restricted: Option<bool>,
         new_product_code_id: Option<u64>,
         new_protocol_fee_bps: Option<u64>,
         new_min_protocol_fee: Option<Uint256>,
         new_min_amount_per_interval: Option<Uint256>,
+        new_min_unit_interval_hour: Option<u64>,
         new_fee_address: Option<String>,
         new_job_registry_address: Option<String>,
     },
@@ -76,12 +79,18 @@ pub struct CreateProductExecuteMsg {
 pub struct ConfigResponse {
     /// The Contract address that used for controls settings for factory, pools and tokenomics contracts
     pub owner: String,
+    /// boolean to indicate if the contract is restricted.
+    pub is_restricted: bool,
     /// Code identifier of the product
     pub product_code_id: u64,
     /// protocol fee in basis points
     pub protocol_fee_bps: u64,
     /// minimum protocol fee,
     pub min_protocol_fee: Uint256,
+    /// minimum amount per interval
+    pub min_amount_per_interval: Uint256,
+    /// minimum unit interval in hours
+    pub min_unit_interval_hour: u64,
     /// fee address
     pub fee_address: String,
     /// job registry address

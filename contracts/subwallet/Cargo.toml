@@ -1,13 +1,13 @@
 [package]
 name = "subwallet"
+description = "Suberra wallet with features extended from cw1 proxy contract"
 version = "0.2.1"
 authors = ["Suberra Labs <tech@suberra.io>"]
 edition = "2018"
-description = "Suberra wallet with features extended from cw1 proxy contract"
-license = "Apache-2.0"
 repository = "https://github.com/Suberra/suberra-contracts"
 homepage = "https://suberra.io"
-documentation = "https://suberra.gitbook.io/suberra/xezYp5ysfgonkGqDhddT/"
+documentation = "https://docs.suberra.io"
+license = "GPL-3.0-or-later"
 
 [lib]
 crate-type = ["cdylib", "rlib"]
@@ -44,7 +44,7 @@ schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.23" }
 moneymarket = { git = "https://github.com/Anchor-Protocol/money-market-contracts" }
-suberra-core = { version = "0.2.0", path = "../../packages/suberra-core" }
+suberra-core = { version = "0.2.1", path = "../../packages/suberra-core" }
 cosmwasm-bignumber = "2.2.0"
 
 [dev-dependencies]
@@ -58,5 +58,5 @@ admin-core = { version = "0.2.0", features = [
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/rust-optimizer:0.12.3
+  cosmwasm/rust-optimizer:0.12.5
 """

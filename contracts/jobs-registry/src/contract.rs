@@ -1,20 +1,12 @@
 #[cfg(not(feature = "library"))]
 use crate::jobs::query_all_jobs;
-use crate::msg::AllJobsResponse;
-use crate::msg::ConfigResponse;
-use crate::msg::JobInfo;
+use crate::msg::{AllJobsResponse, ConfigResponse, JobInfo};
 use crate::querier::deduct_tax;
-use crate::state::Config;
-use crate::state::Job;
-use crate::state::CONFIG;
-use crate::state::COUNT;
-use crate::state::CREDITS;
-use crate::state::JOBS;
-use cosmwasm_std::entry_point;
-use cosmwasm_std::Addr;
-use cosmwasm_std::Coin;
-use cosmwasm_std::{to_binary, Binary, Deps, DepsMut, Env, MessageInfo, Response, StdResult};
-use cosmwasm_std::{BankMsg, CosmosMsg};
+use crate::state::{Config, Job, CONFIG, COUNT, CREDITS, JOBS};
+use cosmwasm_std::{
+    entry_point, to_binary, Addr, Api, BankMsg, Binary, Coin, CosmosMsg, Deps, DepsMut, Env,
+    MessageInfo, Response, StdResult,
+};
 use cw0::NativeBalance;
 use cw2::set_contract_version;
 
@@ -26,6 +18,9 @@ use suberra_core::msg::MigrateMsg;
 const CONTRACT_NAME: &str = "crates.io:jobs-registry";
 const CONTRACT_VERSION: &str = env!("CARGO_PKG_VERSION");
 
+// hard cap of 10 admins to prevent uncapped arrays
+const MAXIMUM_ADMIN_LIST_SIZE: usize = 10;
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     deps: DepsMut,
@@ -35,6 +30,7 @@ pub fn instantiate(
 ) -> Result<Response, ContractError> {
     let state = Config {
         owner: info.sender.clone(),
+        admins: vec![],
         base_fee: vec![],
     };
     set_contract_version(deps.storage, CONTRACT_NAME, CONTRACT_VERSION)?;
@@ -74,6 +70,7 @@ pub fn execute(
             let worker_addr = deps.api.addr_validate(&worker_address)?;
             try_work_receipt(deps, info, worker_addr)
         }
+        ExecuteMsg::UpdateAdmins { admins } => try_update_admins(deps, info, admins),
         ExecuteMsg::SetBaseFee { base_fee } => try_set_base_fee(deps, info, base_fee),
     }
 }
@@ -95,7 +92,10 @@ pub fn try_remove_job(
     match job {
         None => return Err(ContractError::JobNotFound {}),
         Some(j) => {
-            if config.owner != info.sender && j.owner != info.sender {
+            if !config.is_owner(&info.sender)
+                && !config.is_admin(&info.sender)
+                && j.owner != info.sender
+            {
                 return Err(ContractError::Unauthorized {});
             }
 
@@ -171,24 +171,21 @@ pub fn try_work_receipt(
         ))
 }
 
-/// try_set_base_fee sets the base fee that can be claimable by the Workers
+/// try_set_base_fee sets the base fee that can be claimable by the Workers. Once set, jobs must be funded with credits.
 pub fn try_set_base_fee(
     deps: DepsMut,
     info: MessageInfo,
     base_fee: Vec<Coin>,
 ) -> Result<Response, ContractError> {
-    let config = CONFIG.load(deps.storage)?;
+    let mut config = CONFIG.load(deps.storage)?;
 
-    if config.owner != info.sender {
+    if !config.is_owner(&info.sender) {
         return Err(ContractError::Unauthorized {});
     }
 
-    let new_config = Config {
-        owner: config.owner,
-        base_fee: base_fee.clone(),
-    };
+    config.base_fee = base_fee.clone();
 
-    CONFIG.save(deps.storage, &new_config)?;
+    CONFIG.save(deps.storage, &config)?;
 
     Ok(Response::new()
         .add_attribute("method", "try_set_base_fee")
@@ -209,6 +206,12 @@ pub fn try_add_job(
     contract_address: Addr,
     name: String,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if !config.is_owner(&info.sender) && !config.is_admin(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
     let job = JOBS.may_load(deps.storage, &contract_address)?;
     match job {
         Some(j) if j.active => return Err(ContractError::JobExist {}),
@@ -267,6 +270,28 @@ pub fn try_add_credits(
         .add_attribute("contract", contract_address))
 }
 
+pub fn try_update_admins(
+    deps: DepsMut,
+    info: MessageInfo,
+    admins: Vec<String>,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+
+    if !config.is_owner(&info.sender) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if admins.len() > MAXIMUM_ADMIN_LIST_SIZE {
+        return Err(ContractError::InvalidParam {});
+    }
+
+    config.admins = map_validate(deps.api, &admins)?;
+    CONFIG.save(deps.storage, &config)?;
+
+    let res = Response::new().add_attribute("action", "update_admins");
+    Ok(res)
+}
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
     match msg {
@@ -289,7 +314,8 @@ pub fn query(deps: Deps, _env: Env, msg: QueryMsg) -> StdResult<Binary> {
 fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config = CONFIG.load(deps.storage)?;
     Ok(ConfigResponse {
-        owner: config.owner,
+        owner: config.owner.to_string(),
+        admins: config.admins.into_iter().map(|a| a.into()).collect(),
         base_fee: config.base_fee,
     })
 }
@@ -316,4 +342,8 @@ fn query_jobs(
     limit: Option<u32>,
 ) -> StdResult<AllJobsResponse> {
     query_all_jobs(deps, start_after, limit)
+}
+
+pub fn map_validate(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
+    admins.iter().map(|addr| api.addr_validate(addr)).collect()
 }

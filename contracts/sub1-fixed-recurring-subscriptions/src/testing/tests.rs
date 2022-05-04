@@ -4,13 +4,14 @@ use crate::error::ContractError;
 use crate::mock_querier::mock_dependencies;
 use crate::msg::{
     ConfigResponse, ExecuteMsg, QueryMsg, SubscriptionInfoResponse, SubscriptionsResponse,
+    WorkPayload,
 };
 use crate::state::{Config, SubscriptionInfo};
 use admin_core::msg::AdminConfigResponse;
 use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::testing::{mock_env, mock_info};
 #[cfg(not(feature = "library"))]
-use cosmwasm_std::{attr, from_binary, Addr, Api, Coin, Timestamp, Uint128};
+use cosmwasm_std::{attr, from_binary, to_binary, Addr, Api, Coin, Timestamp, Uint128};
 use suberra_core::msg::ProductInstantiateMsg;
 use suberra_core::subscriptions::Discount;
 
@@ -36,13 +37,7 @@ fn proper_initialization() {
         factory_address: "factory".to_string(),
         owner: "creator".to_string(),
     };
-    let info = mock_info(
-        "creator",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let info = mock_info("creator", &[]);
 
     // we can just call .unwrap() to assert this was a success
     let res = contract::instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
@@ -51,7 +46,7 @@ fn proper_initialization() {
 
     let res = contract::query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let value: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!(false, value.paused);
+    assert_eq!(false, value.is_paused);
 }
 
 #[test]
@@ -73,30 +68,18 @@ fn pause() {
         owner: "creator".to_string(),
     };
 
-    let info = mock_info(
-        "creator",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let info = mock_info("creator", &[]);
 
     let _res = contract::instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    // starting state should be paused
+    // starting state should not be paused
     let res = contract::query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let value: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!(false, value.paused);
+    assert_eq!(false, value.is_paused);
 
     // contract cannot be pause or unpaused by an unauthorised personnel
-    let unauth_info = mock_info(
-        "anyone",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
-    let msg = ExecuteMsg::Pause {};
+    let unauth_info = mock_info("anyone", &[]);
+    let msg = ExecuteMsg::TogglePause {};
     let res = contract::execute(deps.as_mut(), mock_env(), unauth_info.clone(), msg);
     match res {
         Err(ContractError::Unauthorized {}) => {}
@@ -104,10 +87,10 @@ fn pause() {
     }
 
     // only the original creator can pause
-    let msg = ExecuteMsg::Pause {};
+    let msg = ExecuteMsg::TogglePause {};
     let _res = contract::execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    // state should now be set to pause
+    // state should now be set to paused
     let res = contract::query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let value: ConfigResponse = from_binary(&res).unwrap();
 
@@ -119,23 +102,11 @@ fn pause() {
         unit_amount: Uint256::from(123u128),
         unit_interval_seconds: 2592000 * 60 * 60,
         uri: "{\"image_url\": \"www.google.com\" }".to_string(),
-        paused: true,
+        is_paused: true,
+        is_frozen: false,
     };
 
     assert_eq!(expected_config, value);
-
-    let res = contract::execute(
-        deps.as_mut(),
-        mock_env(),
-        info.clone(),
-        ExecuteMsg::Charge {
-            payer_address: "subscriber1".to_string(),
-        },
-    );
-    match res {
-        Err(ContractError::Paused {}) => {}
-        _ => panic!("Must return unauthorized error"),
-    };
 
     let res = contract::execute(
         deps.as_mut(),
@@ -145,8 +116,157 @@ fn pause() {
     );
     match res {
         Err(ContractError::Paused {}) => {}
+        _ => panic!("Must return paused error"),
+    }
+}
+
+#[test]
+fn freeze() {
+    let mut deps = mock_dependencies(&[Coin {
+        denom: "uusd".to_string(),
+        amount: Uint128::from(100u128),
+    }]);
+    let msg = ProductInstantiateMsg {
+        receiver_address: "receiver".to_string(),
+        initial_amount: Uint256::from(123u128),
+        unit_amount: Uint256::from(123u128),
+        unit_interval_hour: 2592000u64,
+        additional_grace_period_hour: None,
+        admins: Vec::new(),
+        mutable: false,
+        uri: "{\"image_url\": \"www.google.com\" }".to_string(),
+        factory_address: "factory".to_string(),
+        owner: "creator".to_string(),
+    };
+
+    let info = mock_info("creator", &[]);
+    let mut env = mock_env();
+    let start_timestamp = 1609459200;
+    env.block.time = Timestamp::from_seconds(start_timestamp); // set to 1 January 2021 00:00:00 GMT
+
+    let _res = contract::instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+    // starting state should not be frozen
+    let res = contract::query(deps.as_ref(), env.clone(), QueryMsg::Config {}).unwrap();
+    let value: ConfigResponse = from_binary(&res).unwrap();
+    assert_eq!(false, value.is_frozen);
+
+    // subscriber1 tries to subscribe, should pass as the contract is not frozen yet
+
+    let subscriber1 = mock_info("subscriber", &[]);
+
+    // user tries to subscribe
+    let msg = ExecuteMsg::Subscribe {};
+    let res =
+        contract::execute(deps.as_mut(), env.clone(), subscriber1.clone(), msg.clone()).unwrap();
+    assert_eq!(res.messages.len(), 1);
+
+    // contract cannot be frozen or unfrozen by an unauthorised personnel
+    let unauth_info = mock_info("anyone", &[]);
+    let msg = ExecuteMsg::TogglePause {};
+    let res = contract::execute(deps.as_mut(), env.clone(), unauth_info.clone(), msg);
+
+    match res {
+        Err(ContractError::Unauthorized {}) => {}
         _ => panic!("Must return unauthorized error"),
     }
+
+    // only the original creator can toggle freeze
+    let msg = ExecuteMsg::ToggleFreeze {};
+    let _res = contract::execute(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
+
+
+    // state should now be set to paused
+    let res = contract::query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
+    let value: ConfigResponse = from_binary(&res).unwrap();
+
+    assert_eq!(true, value.is_frozen);
+
+    // functions like subscribe, cancel, remove_subscriber, modify_subscriber and set_discount should not be possible
+
+    let res = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        ExecuteMsg::Subscribe {},
+    );
+    match res {
+        Err(ContractError::Frozen {}) => {}
+        _ => panic!("Must return frozen error"),
+    }
+
+    let res = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        ExecuteMsg::RemoveSubscriber {
+            subscriber: "subscriber".to_string(),
+        },
+    );
+    match res {
+        Err(ContractError::Frozen {}) => {}
+        _ => panic!("Must return frozen error"),
+    }
+
+    let res = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        ExecuteMsg::ModifySubscriber {
+            new_created_at: None,
+            new_last_charged: None,
+            new_interval_end_at: None,
+            subscriber: "subscriber".to_string(),
+        },
+    );
+    match res {
+        Err(ContractError::Frozen {}) => {}
+        _ => panic!("Must return frozen error"),
+    }
+
+    let res = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        ExecuteMsg::SetDiscount {
+            discount: None,
+            subscriber: "subscriber".to_string(),
+        },
+    );
+    match res {
+        Err(ContractError::Frozen {}) => {}
+        _ => panic!("Must return frozen error"),
+    }
+
+    let res = contract::execute(
+        deps.as_mut(),
+        mock_env(),
+        info.clone(),
+        ExecuteMsg::Cancel {},
+    );
+    match res {
+        Err(ContractError::Frozen {}) => {}
+        _ => panic!("Must return frozen error"),
+    }
+
+    // can_work should return false since the contract is frozen
+
+    env.block.time = Timestamp::from_seconds(start_timestamp + THIRTY_DAYS_IN_SECONDS);
+    let result: bool = from_binary(
+        &contract::query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::CanWork {
+                payload: to_binary(&WorkPayload {
+                    payer_address: "subscriber1".to_string(),
+                })
+                .unwrap(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(result, false);
 }
 
 #[test]
@@ -168,39 +288,25 @@ fn unpause() {
         factory_address: "factory".to_string(),
     };
 
-    let info = mock_info(
-        "creator",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let info = mock_info("creator", &[]);
 
     let _res = contract::instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     // only the original creator can pause
-    let msg = ExecuteMsg::Pause {};
+    let msg = ExecuteMsg::TogglePause {};
 
     let _res = contract::execute(deps.as_mut(), mock_env(), info.clone(), msg.clone()).unwrap();
     // state should now be set to pause
     let res = contract::query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let value: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!(value.paused, true);
-
-    // contract should not be paused again
-
-    let res = contract::execute(deps.as_mut(), mock_env(), info.clone(), msg.clone());
-    match res {
-        Err(ContractError::Paused {}) => {}
-        _ => panic!("Must return unauthorized error"),
-    }
+    assert_eq!(value.is_paused, true);
 
     // unpause
-    let msg = ExecuteMsg::Unpause {};
+    let msg = ExecuteMsg::TogglePause {};
     let _res = contract::execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     // state should now be set to pause
     let res = contract::query(deps.as_ref(), mock_env(), QueryMsg::Config {}).unwrap();
     let value: ConfigResponse = from_binary(&res).unwrap();
-    assert_eq!(value.paused, false); // contract should now be unpaused
+    assert_eq!(value.is_paused, false); // contract should now be unpaused
 }
 
 #[test]
@@ -226,23 +332,11 @@ fn simple_subscribe() {
     let start_timestamp = 1609459200;
     env.block.time = Timestamp::from_seconds(start_timestamp); // set to 1 January 2021 00:00:00 GMT
 
-    let info = mock_info(
-        "creator",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let info = mock_info("creator", &[]);
 
     let _res = contract::instantiate(deps.as_mut(), env.clone(), info.clone(), msg).unwrap();
 
-    let subscriber1 = mock_info(
-        "subscriber",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let subscriber1 = mock_info("subscriber", &[]);
 
     // user tries to subscribe
 
@@ -278,13 +372,7 @@ fn simple_subscribe() {
     assert_eq!(subscriptions.subscriptions.len(), 1);
 
     // second subscriber
-    let subscriber2 = mock_info(
-        "subscriber2",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let subscriber2 = mock_info("subscriber2", &[]);
     let _res =
         contract::execute(deps.as_mut(), env.clone(), subscriber2.clone(), msg.clone()).unwrap();
 
@@ -306,6 +394,23 @@ fn simple_subscribe() {
     // fast-forwards timestamp by one billing cycle and check that the subscription is still alive
     let info = mock_info("charger", &[]);
     env.block.time = Timestamp::from_seconds(start_timestamp + THIRTY_DAYS_IN_SECONDS);
+
+    // can_work should return true
+    let result: bool = from_binary(
+        &contract::query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::CanWork {
+                payload: to_binary(&WorkPayload {
+                    payer_address: "subscriber".to_string(),
+                })
+                .unwrap(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(result, true);
 
     let msg = ExecuteMsg::Charge {
         payer_address: "subscriber".to_string(),
@@ -383,23 +488,11 @@ fn query_subscriber() {
         factory_address: "factory".to_string(),
     };
 
-    let info = mock_info(
-        "creator",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let info = mock_info("creator", &[]);
 
     let _res = contract::instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    let subscriber1 = mock_info(
-        "subscriber",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let subscriber1 = mock_info("subscriber", &[]);
 
     let mut env = mock_env();
     let start_timestamp_seconds = 1609459200; // set to 1 January 2021 00:00:00 GMT
@@ -507,13 +600,7 @@ fn subscribe_multiple_times() {
 
     let _res = contract::instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    let info_subscriber = mock_info(
-        "subscriber",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let info_subscriber = mock_info("subscriber", &[]);
 
     let mut env = mock_env();
     env.block.time = Timestamp::from_seconds(1609459200); // set to 1 January 2021 00:00:00 GMT
@@ -651,13 +738,7 @@ fn unpaid_subscriptions() {
 
     let _res = contract::instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
 
-    let info_subscriber = mock_info(
-        "subscriber",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let info_subscriber = mock_info("subscriber", &[]);
 
     let mut env = mock_env();
     let start_timestamp = 1609459200;
@@ -904,13 +985,7 @@ fn remove_subscriber() {
         subscriber: "subscriber".to_string(),
     };
 
-    let unauth_info = mock_info(
-        "anyone",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let unauth_info = mock_info("anyone", &[]);
 
     let res = contract::execute(deps.as_mut(), env.clone(), unauth_info.clone(), msg.clone());
 
@@ -942,6 +1017,7 @@ fn remove_subscriber() {
         res.attributes,
         vec![
             attr("method", "execute_remove_subscriber"),
+            attr("subscriber", "subscriber"),
             attr("module_contract_address", "cosmos2contract")
         ]
     );
@@ -1003,13 +1079,7 @@ fn modify_subscriber() {
         subscriber: "subscriber".to_string(),
     };
 
-    let unauth_info = mock_info(
-        "anyone",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let unauth_info = mock_info("anyone", &[]);
 
     let res = contract::execute(deps.as_mut(), env.clone(), unauth_info.clone(), msg.clone());
 
@@ -1169,13 +1239,7 @@ fn update_initial_amount_and_subscribe() {
         uri: None,
     };
 
-    let unauth_info = mock_info(
-        "anyone",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let unauth_info = mock_info("anyone", &[]);
     let res = contract::execute(deps.as_mut(), env.clone(), unauth_info.clone(), msg.clone());
     match res {
         Err(ContractError::Unauthorized {}) => {}
@@ -1264,13 +1328,7 @@ fn update_admins() {
     };
 
     // contract cannot be updated by unauthorised personnels
-    let unauth_info = mock_info(
-        "anyone",
-        &[Coin {
-            denom: "uusd".to_string(),
-            amount: Uint128::from(100u128),
-        }],
-    );
+    let unauth_info = mock_info("anyone", &[]);
     let res = contract::execute(deps.as_mut(), mock_env(), unauth_info.clone(), msg.clone());
     match res {
         Err(ContractError::Unauthorized {}) => {}
@@ -1440,7 +1498,8 @@ fn test_compute_amount_chargeable() {
         owner_address: Addr::unchecked("owner"),
         receiver_address: Addr::unchecked("receiver"),
         additional_grace_period: 0,
-        paused: false,
+        is_paused: false,
+        is_frozen: false,
         unit_amount: Uint256::from(1000000u128),
         initial_amount: Uint256::from(1000000u128),
         unit_interval: Timestamp::from_seconds(60u64),
@@ -1468,7 +1527,8 @@ fn test_compute_amount_chargeable() {
     let state = Config {
         owner_address: Addr::unchecked("owner"),
         receiver_address: Addr::unchecked("receiver"),
-        paused: false,
+        is_paused: false,
+        is_frozen: false,
         unit_amount: Uint256::from(1000000u128),
         initial_amount: Uint256::from(1000000u128),
         unit_interval: Timestamp::from_seconds(300u64),

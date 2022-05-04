@@ -46,7 +46,9 @@ pub fn instantiate(
         product_code_id: msg.product_code_id,
         protocol_fee_bps: msg.protocol_fee_bps,
         min_protocol_fee: msg.min_protocol_fee,
+        is_restricted: true, // is_restricted is turned on by default. Only release it when platform and automation is more stablised
         min_amount_per_interval: msg.min_amount_per_interval,
+        min_unit_interval_hour: msg.min_unit_interval_hour,
         fee_address: deps.api.addr_validate(&msg.fee_address)?,
         job_registry_address: deps.api.addr_validate(&msg.job_registry_address)?,
     };
@@ -66,15 +68,17 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response, ContractError> {
     match msg {
-        ExecuteMsg::CreateProduct {
-            product_info,
-        } => execute_create_product(deps, env, info, product_info),
+        ExecuteMsg::CreateProduct { product_info } => {
+            execute_create_product(deps, env, info, product_info)
+        }
         ExecuteMsg::UpdateConfig {
             new_owner,
+            new_is_restricted,
             new_product_code_id,
             new_protocol_fee_bps,
             new_min_protocol_fee,
             new_min_amount_per_interval,
+            new_min_unit_interval_hour,
             new_fee_address,
             new_job_registry_address,
         } => update_config(
@@ -82,10 +86,12 @@ pub fn execute(
             env,
             info,
             new_owner,
+            new_is_restricted,
             new_product_code_id,
             new_protocol_fee_bps,
             new_min_protocol_fee,
             new_min_amount_per_interval,
+            new_min_unit_interval_hour,
             new_fee_address,
             new_job_registry_address,
         ),
@@ -103,10 +109,12 @@ pub fn update_config(
     _env: Env,
     info: MessageInfo,
     new_owner: Option<String>,
+    new_is_restricted: Option<bool>,
     new_product_code_id: Option<u64>,
     new_protocol_fee_bps: Option<u64>,
     new_min_protocol_fee: Option<Uint256>,
     new_min_amount_per_interval: Option<Uint256>,
+    new_min_unit_interval_hour: Option<u64>,
     new_fee_address: Option<String>,
     new_job_registry_address: Option<String>,
 ) -> Result<Response, ContractError> {
@@ -121,6 +129,11 @@ pub fn update_config(
     if let Some(new_owner) = new_owner {
         config.owner = deps.api.addr_validate(new_owner.as_str())?;
         attributes.push(attr("new_owner", new_owner));
+    }
+
+    if let Some(new_is_restricted) = new_is_restricted {
+        config.is_restricted = new_is_restricted;
+        attributes.push(attr("is_restricted", new_is_restricted.to_string()))
     }
 
     if let Some(new_protocol_fee_bps) = new_protocol_fee_bps {
@@ -148,6 +161,14 @@ pub fn update_config(
         attributes.push(attr(
             "min_amount_per_interval",
             new_min_amount_per_interval.to_string(),
+        ));
+    }
+
+    if let Some(new_min_unit_interval_hour) = new_min_unit_interval_hour {
+        config.min_unit_interval_hour = new_min_unit_interval_hour;
+        attributes.push(attr(
+            "new_min_unit_interval_hour",
+            new_min_unit_interval_hour.to_string(),
         ));
     }
 
@@ -188,7 +209,14 @@ pub fn execute_create_product(
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
 
-    if param.unit_amount < config.min_amount_per_interval {
+    // restricts the product creation to only the owner. This can be turned off in the future when the automation and platform stablised
+    if config.is_restricted && info.sender != config.owner {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    if param.unit_amount < config.min_amount_per_interval
+        || param.unit_interval_hour < config.min_unit_interval_hour
+    {
         return Err(ContractError::InvalidParam {});
     }
 
@@ -347,9 +375,12 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
     let config: Config = CONFIG.load(deps.storage)?;
     let resp = ConfigResponse {
         owner: config.owner.to_string(),
+        is_restricted: config.is_restricted,
         product_code_id: config.product_code_id,
         protocol_fee_bps: config.protocol_fee_bps,
         min_protocol_fee: config.min_protocol_fee,
+        min_amount_per_interval: config.min_amount_per_interval,
+        min_unit_interval_hour: config.min_unit_interval_hour,
         fee_address: config.fee_address.to_string(),
         job_registry_address: config.job_registry_address.to_string(),
     };

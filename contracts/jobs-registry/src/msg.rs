@@ -26,6 +26,9 @@ pub enum ExecuteMsg {
     SetBaseFee {
         base_fee: Vec<Coin>,
     },
+    UpdateAdmins {
+        admins: Vec<String>,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -48,7 +51,8 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub struct ConfigResponse {
-    pub owner: Addr,
+    pub owner: String,
+    pub admins: Vec<String>,
     pub base_fee: Vec<Coin>,
 }
 

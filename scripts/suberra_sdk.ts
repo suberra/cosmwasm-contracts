@@ -62,6 +62,43 @@ export function createSubscribeMsgs(walletAddress: string, subwallet: string, su
     return [increaseAllowance, subscribeTo];
 }
 
+export function createRecurringTransferMsgs(walletAddress: string, subwallet: string, p2pContract: string, receiver: string) {
+    // Give a high allowance
+    const allowanceAmount = new Coin("uusd", Number.MAX_SAFE_INTEGER);
+
+    const increaseAllowance = new MsgExecuteContract(walletAddress, subwallet, {
+        increase_allowance: {
+            spender: p2pContract,
+            amount: allowanceAmount.toData(),
+        },
+    });
+
+    const createAgreement = new MsgExecuteContract(walletAddress, subwallet, {
+        execute: {
+            msgs: [
+                {
+                    wasm: {
+                        execute: {
+                            funds: [],
+                            contract_addr: p2pContract,
+                            msg: toEncodedBinary({
+                                create_agreement: {
+                                    receiver: receiver,
+                                    amount: "10000000",
+                                    interval: 604800
+                                },
+                            }),
+                        },
+                    },
+                },
+            ],
+        },
+    });
+
+    return [increaseAllowance, createAgreement];
+}
+
+
 export async function getIsSubscribed(lcd: LCDClient, subscription_contract: string, subwallet: string) {
     return lcd.wasm
         .contractQuery<{ is_active: boolean }>(subscription_contract, {

@@ -1,6 +1,8 @@
 use crate::contract;
 use crate::error::ContractError;
-use crate::msg::{AgreementResponse, AgreementsResponse, ExecuteMsg, InstantiateMsg, QueryMsg};
+use crate::msg::{
+    AgreementResponse, AgreementsResponse, ExecuteMsg, InstantiateMsg, QueryMsg, WorkPayload,
+};
 use crate::state::{AgreementStatus, Config};
 use cosmwasm_bignumber::Uint256;
 use cosmwasm_std::testing::{mock_dependencies, mock_env, mock_info};
@@ -227,6 +229,7 @@ fn create_and_transfer() {
         res.attributes,
         vec![
             attr("method", "execute_transfer"),
+            attr("module_contract_address", "cosmos2contract"),
             attr("agreement_id", "1"),
             attr("amount", "1000000")
         ]
@@ -322,6 +325,7 @@ fn create_with_fees() {
         res.attributes,
         vec![
             attr("method", "execute_transfer"),
+            attr("module_contract_address", "cosmos2contract"),
             attr("agreement_id", "1"),
             attr("amount", "100000000")
         ]
@@ -428,6 +432,7 @@ fn create_and_cancel() {
         res.attributes,
         vec![
             attr("method", "cancel_agreement"),
+            attr("module_contract_address", "cosmos2contract"),
             attr("agreement_id", "1"),
         ]
     );
@@ -560,6 +565,224 @@ fn test_multiple_agreements() {
 }
 
 #[test]
+fn pause() {
+    let mut deps = mock_dependencies(&[]);
+    let mut env = mock_env();
+
+    let start_time = 1609459200u64;
+    env.block.time = Timestamp::from_seconds(start_time);
+
+    let msg = InstantiateMsg {
+        job_registry_contract: Some("job_registry".to_string()),
+        minimum_interval: HOUR_SECONDS,
+        minimum_amount_per_interval: Uint256::from(1_000_000u128),
+        fee_bps: None,
+        fee_address: None,
+        max_fee: None,
+    };
+    let info = mock_info("creator", &coins(1000, "earth"));
+    let res = contract::instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // create agreement
+    // Creates Alice -> Bob that starts in an hour and expires in a week
+    let info = mock_info("alice", &coins(2, "token"));
+    let msg = ExecuteMsg::CreateAgreement {
+        receiver: String::from("bob"),
+        amount: Uint256::from(100_000_000u128),
+        start_at: Some(start_time + HOUR_SECONDS),
+        end_at: Some(start_time + HOUR_SECONDS + DAY_SECONDS * 7),
+        interval: DAY_SECONDS,
+    };
+    let _res = contract::execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    // pause contract
+
+    let pause_msg = ExecuteMsg::TogglePause {};
+
+    // unauthorised user attempts to change config. Should fail
+    let info = mock_info("mallory", &coins(2, "token"));
+
+    let res = contract::execute(deps.as_mut(), env.clone(), info, pause_msg.clone());
+    match res {
+        Err(ContractError::Unauthorized {}) => {}
+        _ => panic!("Contract should return an unauthorised error"),
+    }
+
+    // only owner can toggle the pause feature
+    let info = mock_info("creator", &coins(2, "token"));
+    let _res = contract::execute(deps.as_mut(), env.clone(), info, pause_msg.clone()).unwrap();
+
+    let msg = QueryMsg::Config {};
+    let res = contract::query(deps.as_ref(), mock_env(), msg).unwrap();
+    let config: Config = from_binary(&res).unwrap();
+    assert_eq!(config.is_paused, true);
+
+    // bob tries to create agreement, should have a Paused error as contract is not accepting future new agreements
+    // Creates Bob -> Charlie that starts in 3 1hr days and expires in 4 days
+    let info = mock_info("bob", &coins(2, "token"));
+    let msg = ExecuteMsg::CreateAgreement {
+        receiver: String::from("charlie"),
+        amount: Uint256::from(1000000u128),
+        start_at: Some(start_time + DAY_SECONDS * 3 + HOUR_SECONDS),
+        end_at: Some(start_time + DAY_SECONDS * 4),
+        interval: DAY_SECONDS,
+    };
+    let res = contract::execute(deps.as_mut(), env.clone(), info, msg);
+    match res {
+        Err(ContractError::Paused {}) => {}
+        _ => panic!("Contract should return a pause error"),
+    }
+
+    // fast-forwards
+
+    env.block.time = Timestamp::from_seconds(start_time + HOUR_SECONDS);
+    // fast-forward 1 hour and do a transfer
+
+    let msg = ExecuteMsg::Transfer { agreement_id: 1u64 };
+    let info = mock_info("alice", &coins(2, "token"));
+    let res = contract::execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    assert_eq!(
+        res.attributes,
+        vec![
+            attr("method", "execute_transfer"),
+            attr("module_contract_address", "cosmos2contract"),
+            attr("agreement_id", "1"),
+            attr("amount", "100000000")
+        ]
+    );
+
+    // Should still send fees on subsequent transfers
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: String::from("alice"),
+            funds: vec![],
+            msg: to_binary(&SubWalletExecuteMsg::TransferAToken {
+                recipient: String::from("bob"),
+                amount: Uint128::from(100_000_000u128),
+            })
+            .unwrap(),
+        }))]
+    );
+
+    // Owner can toggle the pause feature
+    let info = mock_info("creator", &coins(2, "token"));
+    let _res = contract::execute(deps.as_mut(), env.clone(), info, pause_msg).unwrap();
+
+    let msg = QueryMsg::Config {};
+    let res = contract::query(deps.as_ref(), mock_env(), msg).unwrap();
+    let config: Config = from_binary(&res).unwrap();
+    assert_eq!(config.is_paused, false);
+
+}
+
+#[test]
+fn freeze() {
+    let mut deps = mock_dependencies(&[]);
+    let mut env = mock_env();
+
+    let start_time = 1609459200u64;
+    env.block.time = Timestamp::from_seconds(start_time);
+
+    let msg = InstantiateMsg {
+        job_registry_contract: Some("job_registry".to_string()),
+        minimum_interval: HOUR_SECONDS,
+        minimum_amount_per_interval: Uint256::from(1_000_000u128),
+        fee_bps: None,
+        fee_address: None,
+        max_fee: None,
+    };
+    let info = mock_info("creator", &coins(1000, "earth"));
+    let res = contract::instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    assert_eq!(0, res.messages.len());
+
+    // create agreement
+    // Creates Alice -> Bob that starts in an hour and expires in a week
+    let info = mock_info("alice", &coins(2, "token"));
+    let msg = ExecuteMsg::CreateAgreement {
+        receiver: String::from("bob"),
+        amount: Uint256::from(100_000_000u128),
+        start_at: Some(start_time + HOUR_SECONDS),
+        end_at: Some(start_time + HOUR_SECONDS + DAY_SECONDS * 7),
+        interval: DAY_SECONDS,
+    };
+    let _res = contract::execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+
+    // freeze contract
+    let freeze_msg = ExecuteMsg::ToggleFreeze {};
+
+    // unauthorised user attempts to change config. Should fail
+    let info = mock_info("mallory", &coins(2, "token"));
+
+    let res = contract::execute(deps.as_mut(), env.clone(), info, freeze_msg.clone());
+    match res {
+        Err(ContractError::Unauthorized {}) => {}
+        _ => panic!("Contract should return an unauthorised error"),
+    }
+
+    // only owner can freeze contract
+
+    let info = mock_info("creator", &coins(2, "token"));
+    let _res = contract::execute(deps.as_mut(), env.clone(), info, freeze_msg.clone()).unwrap();
+
+    let msg = QueryMsg::Config {};
+    let res = contract::query(deps.as_ref(), mock_env(), msg).unwrap();
+    let config: Config = from_binary(&res).unwrap();
+    assert_eq!(config.is_frozen, true);
+
+    // bob tries to create agreement, should have a Frozen error as contract is not accepting future new agreements
+    // Creates Bob -> Charlie that starts in 3 1hr days and expires in 4 days
+    let info = mock_info("bob", &coins(2, "token"));
+    let msg = ExecuteMsg::CreateAgreement {
+        receiver: String::from("charlie"),
+        amount: Uint256::from(1000000u128),
+        start_at: Some(start_time + DAY_SECONDS * 3 + HOUR_SECONDS),
+        end_at: Some(start_time + DAY_SECONDS * 4),
+        interval: DAY_SECONDS,
+    };
+    let res = contract::execute(deps.as_mut(), env.clone(), info, msg);
+    match res {
+        Err(ContractError::Frozen {}) => {}
+        _ => panic!("Contract should return a frozen status"),
+    }
+
+    // fast-forward 1 hour and do a transfer
+    env.block.time = Timestamp::from_seconds(start_time + HOUR_SECONDS);
+
+    let msg = ExecuteMsg::Transfer { agreement_id: 1u64 };
+    let info = mock_info("alice", &coins(2, "token"));
+    let res = contract::execute(deps.as_mut(), env.clone(), info, msg);
+    match res {
+        Err(ContractError::Frozen {}) => {}
+        _ => panic!("Contract should return a frozen status"),
+    }
+
+    // can_work should return false since the contract is frozen
+    let result: bool = from_binary(
+        &contract::query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::CanWork {
+                payload: to_binary(&WorkPayload { agreement_id: 1 }).unwrap(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(result, false);
+
+    // Owner can toggle the pause feature
+    let info = mock_info("creator", &coins(2, "token"));
+    let _res = contract::execute(deps.as_mut(), env.clone(), info, freeze_msg).unwrap();
+
+    let msg = QueryMsg::Config {};
+    let res = contract::query(deps.as_ref(), mock_env(), msg).unwrap();
+    let config: Config = from_binary(&res).unwrap();
+    assert_eq!(config.is_frozen, false);
+}
+
+#[test]
 fn change_config() {
     let mut deps = mock_dependencies(&[]);
 
@@ -580,6 +803,8 @@ fn change_config() {
     let config: Config = from_binary(&res).unwrap();
     let expected_config: Config = Config {
         owner: Addr::unchecked("creator"),
+        is_paused: false,
+        is_frozen: false,
         job_registry_contract: Some(Addr::unchecked("job_registry")),
         minimum_interval: HOUR_SECONDS,
         minimum_amount_per_interval: Uint256::from(1_000_000u128),
@@ -614,6 +839,8 @@ fn change_config() {
     let config: Config = from_binary(&res).unwrap();
     let expected_config: Config = Config {
         owner: Addr::unchecked("creator"),
+        is_paused: false,
+        is_frozen: false,
         job_registry_contract: Some(Addr::unchecked("job_registry")),
         minimum_interval: HOUR_SECONDS,
         minimum_amount_per_interval: Uint256::from(1_000_000u128),
@@ -632,6 +859,8 @@ fn change_config() {
     let config: Config = from_binary(&res).unwrap();
     let expected_config: Config = Config {
         owner: Addr::unchecked("the_new_owner"),
+        is_paused: false,
+        is_frozen: false,
         job_registry_contract: Some(Addr::unchecked("the_new_job_registry")),
         minimum_interval: DAY_SECONDS,
         minimum_amount_per_interval: Uint256::from(1_000_000u128),
@@ -662,7 +891,7 @@ fn test_charge_lapsed_expiry() {
     let info = mock_info("creator", &coins(2, "token"));
     contract::instantiate(deps.as_mut(), env.clone(), info, msg).unwrap();
 
-    // Creates Alive -> Bob that starts in an hour and expires in a week
+    // Creates Alice -> Bob that starts in an hour and expires in a week
     let info = mock_info("alice", &coins(2, "token"));
     let msg = ExecuteMsg::CreateAgreement {
         receiver: String::from("bob"),
@@ -742,6 +971,20 @@ fn test_charge_lapsed_expiry() {
         }
     );
 
+    // can_work should return true
+    let result: bool = from_binary(
+        &contract::query(
+            deps.as_ref(),
+            env.clone(),
+            QueryMsg::CanWork {
+                payload: to_binary(&WorkPayload { agreement_id: 1 }).unwrap(),
+            },
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(result, true);
+
     // Execute transfers
     let info = mock_info("bot", &[]);
     let msg = ExecuteMsg::Transfer { agreement_id: 1u64 };
@@ -750,6 +993,7 @@ fn test_charge_lapsed_expiry() {
         res.attributes,
         vec![
             attr("method", "execute_transfer"),
+            attr("module_contract_address", "cosmos2contract"),
             attr("agreement_id", "1"),
             attr("amount", "1000000"),
         ]

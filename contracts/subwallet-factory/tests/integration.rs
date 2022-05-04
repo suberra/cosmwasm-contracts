@@ -43,7 +43,7 @@ fn proper_initialization_factory() {
         res,
         Config {
             subwallet_code_id,
-            contract_owner: owner,
+            owner,
             anchor_market_contract: Addr::unchecked("terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal"),
             aterra_token_addr: Addr::unchecked("terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"),
         }

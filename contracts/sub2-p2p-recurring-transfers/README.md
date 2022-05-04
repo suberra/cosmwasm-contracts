@@ -44,6 +44,23 @@ Work {
 }
 ```
 
+5. Toggle Freeze
+
+Toggles the `is_frozen` flag. If the previous value is true, it will set it to false. Vice-versa otherwise. 
+
+```rust
+ToggleFreeze {}
+```
+
+6. Toggle Pause 
+
+
+Toggles the `is_paused` flag. If the previous value is true, it will set it to false. Vice-versa otherwise. 
+
+```rust
+TogglePause {}
+```
+
 ## Queries
 
 **1. Get agreement detail**

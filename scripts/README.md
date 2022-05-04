@@ -35,8 +35,9 @@ Our scripts will attempt to deploy all suberra related contracts on the target n
     **Env setting**
     ```shell
     WALLET="your deployer mnemonic"
-    LCD_CLIENT_URL=https://bombay-lcd.terra.dev
-    CHAIN_ID=bombay-12 # or localterra
+    ADDRESS="terra1..."
+    LCD_CLIENT_URL=https://bombay-lcd.terra.dev # https://lcd.terra.dev for col-5
+    CHAIN_ID="bombay-12" # or localterra / columbus-5
     ```
 
 3. Run deployment script

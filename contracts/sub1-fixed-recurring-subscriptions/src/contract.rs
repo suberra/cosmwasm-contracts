@@ -34,6 +34,9 @@ const MAX_FEE_DECIMAL: u64 = 10_000u64; // constant for 100%
 const MAX_LIMIT: u32 = 30;
 const DEFAULT_GRACE_PERIOD: u64 = 86400; // 24 hours in seconds
 
+// hard cap of 10 admins to prevent uncapped arrays
+const MAXIMUM_ADMIN_LIST_SIZE: usize = 10;
+
 #[cfg_attr(not(feature = "library"), entry_point)]
 pub fn instantiate(
     mut deps: DepsMut,
@@ -72,7 +75,8 @@ pub fn instantiate(
             unit_amount: msg.unit_amount,
             initial_amount: msg.initial_amount,
             uri: msg.uri,
-            paused: false,
+            is_paused: false,
+            is_frozen: false,
             factory_address: deps.api.addr_validate(&msg.factory_address)?,
         },
     )?;
@@ -121,8 +125,8 @@ pub fn execute(
         ExecuteMsg::UpdateAdmins { admins } => execute_update_admins(deps, env, info, admins),
         ExecuteMsg::Subscribe {} => execute_subscribe(deps, info, env),
         ExecuteMsg::Cancel {} => execute_cancel(deps, info, env),
-        ExecuteMsg::Pause {} => execute_pause(deps, info, env, true),
-        ExecuteMsg::Unpause {} => execute_pause(deps, info, env, false),
+        ExecuteMsg::TogglePause {} => execute_toggle_pause(deps, info, env),
+        ExecuteMsg::ToggleFreeze {} => execute_toggle_freeze(deps, info, env),
         ExecuteMsg::ModifySubscriber {
             new_created_at,
             new_last_charged,
@@ -187,11 +191,9 @@ pub fn update_config(
 
     // Only owner or admin can call this function
     let cfg = ADMIN_CONFIG.load(deps.storage)?;
-    if !cfg.is_admin(info.sender.as_ref()) && info.sender != config.owner_address {
+    if !cfg.is_admin(info.sender.as_ref()) && !cfg.is_owner(info.sender.as_ref()) {
         return Err(ContractError::Unauthorized {});
     }
-
-    // only `receiver_address`, `additional_grace_period_hour` and `uri` can be updated. Only update if a value is given
 
     if let Some(receiver_address) = receiver_address {
         config.receiver_address = deps.api.addr_validate(receiver_address.as_str())?;
@@ -219,7 +221,6 @@ pub fn update_config(
 ///
 /// ## Executor
 /// Can only be peformed by the owner
-
 pub fn execute_update_admins(
     deps: DepsMut,
     _env: Env,
@@ -227,43 +228,20 @@ pub fn execute_update_admins(
     admins: Vec<String>,
 ) -> Result<Response, ContractError> {
     let mut cfg = ADMIN_CONFIG.load(deps.storage)?;
-    let config: Config = read_config(deps.storage)?;
 
-    if info.sender != config.owner_address {
+    if !cfg.is_owner(info.sender.as_ref()) {
         Err(ContractError::Unauthorized {})
     } else {
+        if admins.len() > MAXIMUM_ADMIN_LIST_SIZE {
+            return Err(ContractError::InvalidParam {});
+        }
+
         cfg.admins = map_validate(deps.api, &admins)?;
         ADMIN_CONFIG.save(deps.storage, &cfg)?;
 
         let res = Response::new().add_attribute("action", "update_admins");
         Ok(res)
     }
-}
-
-pub fn map_validate(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
-    admins.iter().map(|addr| api.addr_validate(addr)).collect()
-}
-
-// calculates the protocol fee that will be payable to the suberra protocol. `protocol_fee_bps` is queried from the factory.
-// returns None is there is no fee that is payable. Otherwise returns the amount payable to protocola
-pub fn calculate_protocol_fee(
-    protocol_fee_bps: u64,
-    min_protocol_fee: Uint256,
-    amount: Uint256,
-) -> Option<Uint256> {
-    if protocol_fee_bps == 0 {
-        return None;
-    }
-
-    let protocol_fee_rate = Decimal256::from_ratio(
-        Uint256::from(protocol_fee_bps),
-        Uint256::from(MAX_FEE_DECIMAL),
-    );
-
-    // get the protocol_fee. If the protocol_fee is less than the minimum protocol_fee, the minimum protocol_fee should be used
-    let protocol_fee = std::cmp::max(protocol_fee_rate * amount, min_protocol_fee);
-
-    Some(protocol_fee)
 }
 
 /// Creates a subscription object whenever the user subscribes to the product.
@@ -283,8 +261,13 @@ pub fn execute_subscribe(
     let config: Config = read_config(deps.storage)?;
     let mut is_undo = false; // flag on whether this is an undo cancellation request
 
-    if config.paused {
+    // users should not be able to subscribe again once it is paused
+    if config.is_paused {
         return Err(ContractError::Paused {});
+    }
+
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
     }
 
     let mut msgs = Vec::new();
@@ -406,8 +389,8 @@ pub fn execute_cancel(
 ) -> Result<Response, ContractError> {
     let config: Config = read_config(deps.storage)?;
 
-    if config.paused {
-        return Err(ContractError::Paused {});
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
     }
 
     let subscriber = info.sender;
@@ -445,13 +428,13 @@ pub fn execute_remove_subscriber(
 ) -> Result<Response, ContractError> {
     let config: Config = read_config(deps.storage)?;
 
-    if config.paused {
-        return Err(ContractError::Paused {});
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
     }
 
     // Only owner or admin can call this function
     let cfg = ADMIN_CONFIG.load(deps.storage)?;
-    if !cfg.is_admin(info.sender.as_ref()) && info.sender != config.owner_address {
+    if !cfg.is_admin(info.sender.as_ref()) && !cfg.is_owner(info.sender.as_ref()) {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -465,6 +448,7 @@ pub fn execute_remove_subscriber(
 
     Ok(Response::new().add_attributes(vec![
         attr("method", "execute_remove_subscriber"),
+        attr("subscriber", subscriber.to_string()),
         attr("module_contract_address", env.contract.address.to_string()),
     ]))
 }
@@ -481,17 +465,17 @@ pub fn execute_set_discount(
     let config: Config = read_config(deps.storage)?;
     let cfg = ADMIN_CONFIG.load(deps.storage)?;
 
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
+    }
+
     let attributes = Vec::from([
         attr("method", "set_discount"),
         attr("module_contract_address", env.contract.address.to_string()),
     ]);
 
-    if config.paused {
-        return Err(ContractError::Paused {});
-    }
-
     // Only owner or admin can call this function
-    if !cfg.is_admin(info.sender.as_ref()) && info.sender != config.owner_address {
+    if !cfg.is_admin(info.sender.as_ref()) && !cfg.is_owner(info.sender.as_ref()) {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -513,18 +497,6 @@ pub fn execute_set_discount(
     Ok(Response::new().add_attributes(attributes))
 }
 
-// checks if a discount is valid. If valid, returns true. Otherwise return false.
-fn is_valid_discount(discount: Option<Discount>, subscription_amount: Uint256) -> bool {
-    if let Some(discount) = discount {
-        // checks if the amount if valid
-        if discount.amount > subscription_amount {
-            return false;
-        }
-    }
-    // returns true. Setting discount to be None should be valid
-    true
-}
-
 /// Modify settings for a given subscriber. Owner should be able to change the `last_charged, `created_at` and `interval_end_at` timestamp.
 /// To modify the Discount status for a user, use the `ExecuteMsg::SetDiscount` message instead
 ///
@@ -544,17 +516,17 @@ pub fn execute_modify_subscriber(
     let config: Config = read_config(deps.storage)?;
     let cfg = ADMIN_CONFIG.load(deps.storage)?;
 
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
+    }
+
     let mut attributes = Vec::from([
         attr("method", "modify_subscriber"),
         attr("module_contract_address", env.contract.address.to_string()),
     ]);
 
-    if config.paused {
-        return Err(ContractError::Paused {});
-    }
-
     // Only owner or admin can call this function
-    if !cfg.is_admin(info.sender.as_ref()) && info.sender != config.owner_address {
+    if !cfg.is_admin(info.sender.as_ref()) && !cfg.is_owner(info.sender.as_ref()) {
         return Err(ContractError::Unauthorized {});
     }
 
@@ -609,8 +581,8 @@ pub fn execute_work(
 ) -> Result<Response, ContractError> {
     let config: Config = read_config(deps.storage)?;
 
-    if config.paused {
-        return Err(ContractError::Paused {});
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
     }
 
     let worker = info.sender.to_string();
@@ -653,8 +625,8 @@ pub fn execute_charge(
     // checks if the contract is paused. If paused, do not proceed to charge existing subscribers
     let config = read_config(deps.storage)?;
 
-    if config.paused {
-        return Err(ContractError::Paused {});
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
     }
 
     // get receiver address
@@ -749,6 +721,109 @@ pub fn execute_charge(
     ]))
 }
 
+/// Toggles the `is_paused` variable in the contract. if the `is_paused` variable was `false`, then this function should toggle it to true. Same applies vice-versa.
+///
+/// Once paused, no other new subscriptions on the contract will be allowed. Users will be allowed to cancel their subscription but they will not be able to subscribe back again.
+///
+/// Users still have their [`SubscriptionInfo`] stored on the contract. Charges should still work on a paused contract.
+/// Returns an [`ContractError`] on failure or returns the [`Response`] with the specified attributes
+/// if the operation was successful.
+///
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+///  * **_env** is the object of type [`Env`]
+pub fn execute_toggle_pause(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+) -> Result<Response, ContractError> {
+    let mut config: Config = read_config(deps.storage)?;
+    let cfg = ADMIN_CONFIG.load(deps.storage)?;
+
+    // Only admins and owner can call this function
+    if !cfg.is_admin(info.sender.as_ref()) && !cfg.is_owner(info.sender.as_ref()) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let new_flag = !config.is_paused;
+    config.is_paused = new_flag;
+
+    store_config(deps.storage, &config)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("method", "execute_toggle_pause"),
+        attr("module_contract_address", env.contract.address.to_string()),
+    ]))
+}
+
+/// Toggles the `is_frozen` variable in the contract. if the `is_frozen` variable was `false`, then this function should toggle it to true. Same applies vice-versa.
+/// Once frozen, only admin features are allowed. This function may caused disruptive behavior since charges cannot proceed on a frozen contract.
+///
+/// Users still have their [`SubscriptionInfo`] stored on the contract. However, as charge is not allowed, it may result in subscription expiring.
+///
+/// Returns an [`ContractError`] on failure or returns the [`Response`] with the specified attributes
+/// if the operation was successful.
+///
+/// ## Params
+/// * **deps** is the object of type [`DepsMut`].
+///
+/// * **info** is the object of type [`MessageInfo`].
+///
+///  * **_env** is the object of type [`Env`]
+pub fn execute_toggle_freeze(
+    deps: DepsMut,
+    info: MessageInfo,
+    env: Env,
+) -> Result<Response, ContractError> {
+    let mut config: Config = read_config(deps.storage)?;
+    let cfg = ADMIN_CONFIG.load(deps.storage)?;
+
+    // Only admins and owner can call this function
+    if !cfg.is_admin(info.sender.as_ref()) && !cfg.is_owner(info.sender.as_ref()) {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let new_flag = !config.is_frozen;
+    config.is_frozen = new_flag;
+
+    store_config(deps.storage, &config)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("method", "execute_toggle_freeze"),
+        attr("module_contract_address", env.contract.address.to_string()),
+    ]))
+}
+
+// helper functions
+pub fn map_validate(api: &dyn Api, admins: &[String]) -> StdResult<Vec<Addr>> {
+    admins.iter().map(|addr| api.addr_validate(addr)).collect()
+}
+
+// calculates the protocol fee that will be payable to the suberra protocol. `protocol_fee_bps` is queried from the factory.
+// returns None is there is no fee that is payable. Otherwise returns the amount payable to protocola
+pub fn calculate_protocol_fee(
+    protocol_fee_bps: u64,
+    min_protocol_fee: Uint256,
+    amount: Uint256,
+) -> Option<Uint256> {
+    if protocol_fee_bps == 0 {
+        return None;
+    }
+
+    let protocol_fee_rate = Decimal256::from_ratio(
+        Uint256::from(protocol_fee_bps),
+        Uint256::from(MAX_FEE_DECIMAL),
+    );
+
+    // get the protocol_fee. If the protocol_fee is less than the minimum protocol_fee, the minimum protocol_fee should be used
+    let protocol_fee = std::cmp::max(protocol_fee_rate * amount, min_protocol_fee);
+
+    Some(protocol_fee)
+}
+
 /// Wrapper function to call the [`compute_amount_chargeable`]
 pub fn get_chargeable_amount(
     deps: Deps,
@@ -820,53 +895,16 @@ pub fn compute_amount_chargeable(
     }
 }
 
-/// Pause or unpause the contract. Takes in a value `execute_pause` of [`bool`] type.
-/// Once paused, no other operations on the contractwill be allowed. Users still have their [`SubscriptionInfo`] stored on the contract.
-/// Be careful of the effects of pausing and unpausing a contract as it might result in disruptive user experience. User's last_charged and membership validity might be affected.
-/// Returns an [`ContractError`] on failure or returns the [`Response`] with the specified attributes
-/// if the operation was successful.
-///
-/// ## Params
-/// * **deps** is the object of type [`DepsMut`].
-///
-/// * **info** is the object of type [`MessageInfo`].
-///
-///  * **_env** is the object of type [`Env`]
-///
-/// * **execute_pause** is the object of type [`bool`]. `true` if admin is attempting to pause it,`false` if admin is attempting to unpause it (resume operations)
-pub fn execute_pause(
-    deps: DepsMut,
-    info: MessageInfo,
-    env: Env,
-    execute_pause: bool,
-) -> Result<Response, ContractError> {
-    let mut config: Config = read_config(deps.storage)?;
-    let cfg = ADMIN_CONFIG.load(deps.storage)?;
-
-    // Only owner can call this function
-    if !cfg.is_admin(info.sender.as_ref()) && info.sender != config.owner_address {
-        return Err(ContractError::Unauthorized {});
-    }
-
-    if execute_pause {
-        if config.paused {
-            return Err(ContractError::Paused {});
-        }
-    } else {
-        // user executing to unpause
-        if !config.paused {
-            return Err(ContractError::Unpaused {});
+// checks if a discount is valid. If valid, returns true. Otherwise return false.
+fn is_valid_discount(discount: Option<Discount>, subscription_amount: Uint256) -> bool {
+    if let Some(discount) = discount {
+        // checks if the amount if valid
+        if discount.amount > subscription_amount {
+            return false;
         }
     }
-
-    config.paused = !config.paused;
-    store_config(deps.storage, &config)?;
-
-    Ok(Response::new().add_attributes(vec![
-        attr("method", "execute_flip_pause"),
-        attr("module_contract_address", env.contract.address.to_string()),
-        attr("is_paused", config.paused.to_string()),
-    ]))
+    // returns true. Setting discount to be None should be valid
+    true
 }
 
 #[cfg_attr(not(feature = "library"), entry_point)]
@@ -894,6 +932,13 @@ pub fn query(deps: Deps, env: Env, msg: QueryMsg) -> StdResult<Binary> {
 
 /// query_can_work is called by the Worker nodes - they will query periodically and only perform work when there is a valid work to be done
 fn query_can_work(deps: Deps, env: Env, subscriber: Addr) -> StdResult<bool> {
+    let config: Config = read_config(deps.storage)?;
+
+    if config.is_frozen {
+        // returns false if the contract is frozen as no work can be done
+        return Ok(false);
+    }
+
     let subscription = match SUBSCRIPTIONS.may_load(deps.storage, &subscriber)? {
         Some(v) => v,
         None => return Ok(false),
@@ -946,7 +991,8 @@ fn query_config(deps: Deps) -> StdResult<ConfigResponse> {
         unit_interval_seconds: config.unit_interval.seconds(),
         unit_amount: config.unit_amount,
         additional_grace_period: config.additional_grace_period,
-        paused: config.paused,
+        is_paused: config.is_paused,
+        is_frozen: config.is_frozen,
         uri: config.uri,
     })
 }

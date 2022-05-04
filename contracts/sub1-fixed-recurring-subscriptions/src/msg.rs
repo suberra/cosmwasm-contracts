@@ -19,8 +19,8 @@ pub enum ExecuteMsg {
     },
     Subscribe {},
     Cancel {},
-    Pause {},
-    Unpause {},
+    TogglePause {},
+    ToggleFreeze {},
     RemoveSubscriber {
         subscriber: String,
     },
@@ -87,7 +87,8 @@ pub struct ConfigResponse {
     pub unit_amount: Uint256,
     pub additional_grace_period: u64,
     pub initial_amount: Uint256,
-    pub paused: bool,
+    pub is_paused: bool,
+    pub is_frozen: bool,
     pub uri: String,
 }
 

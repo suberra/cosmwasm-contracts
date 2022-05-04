@@ -45,6 +45,8 @@ pub enum ExecuteMsg {
         fee_address: Option<String>,
         max_fee: Option<Uint256>,
     },
+    ToggleFreeze {},
+    TogglePause {},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

@@ -6,5 +6,9 @@
   "bombay-12": {
     "anchor_market_contract": "terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal",
     "aterra_token_contract": "terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"
+  },
+  "columbus-5" : {
+    "anchor_market_contract" : "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s",
+    "aterra_token_contract" : "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu"
   }
 }

@@ -6,7 +6,7 @@
   "required": [
     "anchor_market_contract",
     "aterra_token_addr",
-    "contract_owner",
+    "owner",
     "subwallet_code_id"
   ],
   "properties": {
@@ -16,7 +16,7 @@
     "aterra_token_addr": {
       "$ref": "#/definitions/Addr"
     },
-    "contract_owner": {
+    "owner": {
       "$ref": "#/definitions/Addr"
     },
     "subwallet_code_id": {

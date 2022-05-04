@@ -2,8 +2,12 @@
 name = "sub2-p2p-recurring-transfers"
 description = "Contracts for instantiating and managing peer-to-peer recurring transfers"
 version = "0.2.2"
-authors = ["Suberra Labs <hello@suberra.io>"]
+authors = ["Suberra Labs <tech@suberra.io>"]
 edition = "2018"
+repository = "https://github.com/Suberra/suberra-contracts"
+homepage = "https://suberra.io"
+documentation = "https://docs.suberra.io"
+license = "GPL-3.0-or-later"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -37,7 +41,7 @@ library = []
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/rust-optimizer:0.12.3
+  cosmwasm/rust-optimizer:0.12.5
 """
 
 [dependencies]
@@ -49,7 +53,7 @@ cw2 = "0.8.1"
 schemars = "0.8.3"
 serde = { version = "1.0.127", default-features = false, features = ["derive"] }
 thiserror = { version = "1.0.26" }
-suberra-core = { version = "0.2.0", path = "../../packages/suberra-core" }
+suberra-core = { version = "0.2.1", path = "../../packages/suberra-core" }
 
 [dev-dependencies]
 cosmwasm-schema = { version = "0.16.0" }

@@ -40,8 +40,14 @@ fn add_job() {
     let msg = InstantiateMsg {};
     let info = mock_info("creator", &[]);
 
-    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
+
+    let msg = ExecuteMsg::UpdateAdmins {
+        admins: vec!["merchant".to_owned(), "merchant2".to_owned()],
+    };
+
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let info = mock_info("merchant", &coins(2, "token"));
     let msg = ExecuteMsg::AddJob {
@@ -86,8 +92,14 @@ fn remove_job() {
     let msg = InstantiateMsg {};
     let info = mock_info("creator", &[]);
 
-    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
+
+    let msg = ExecuteMsg::UpdateAdmins {
+        admins: vec!["merchant".to_owned()],
+    };
+
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // should not be able to remove non-existent jobs
     let info = mock_info("merchant", &coins(2, "token"));
@@ -123,8 +135,14 @@ fn get_job() {
     let msg = InstantiateMsg {};
     let info = mock_info("creator", &[]);
 
-    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
+
+    let msg = ExecuteMsg::UpdateAdmins {
+        admins: vec!["merchant".to_owned()],
+    };
+
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let info = mock_info("merchant", &coins(2, "token"));
     let msg = ExecuteMsg::AddJob {
@@ -152,8 +170,14 @@ fn get_all_jobs() {
     let msg = InstantiateMsg {};
     let info = mock_info("creator", &[]);
 
-    let res = instantiate(deps.as_mut(), mock_env(), info, msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
+
+    let msg = ExecuteMsg::UpdateAdmins {
+        admins: vec!["merchant".to_owned()],
+    };
+
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     for i in 0..30 {
         let job_contract_addr = format!("job{}", i);
@@ -206,9 +230,16 @@ fn add_credits() {
     let res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
 
+    let msg = ExecuteMsg::UpdateAdmins {
+        admins: vec!["merchant".to_owned()],
+    };
+
+    execute(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+
     let msg = ExecuteMsg::SetBaseFee {
         base_fee: vec![Coin::new(100000, "uusd")],
     };
+
     execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     let info = mock_info("merchant", &coins(5, "uusd"));
@@ -258,8 +289,14 @@ fn work_receipt() {
     let msg = InstantiateMsg {};
     let info = mock_info("creator", &[]);
     // init
-    let res = instantiate(deps.as_mut(), mock_env(), info.clone(), msg).unwrap();
+    let res = instantiate(deps.as_mut(), mock_env(), info.clone().clone(), msg).unwrap();
     assert_eq!(0, res.messages.len());
+
+    let msg = ExecuteMsg::UpdateAdmins {
+        admins: vec!["merchant".to_owned()],
+    };
+
+    execute(deps.as_mut(), mock_env(), info, msg).unwrap();
 
     // Should not work on unregistered job
     let info = mock_info("job1", &vec![]);

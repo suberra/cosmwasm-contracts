@@ -53,6 +53,22 @@ Add credits to the contract. Contract needs to have credits so that the workers 
 }
 ```
 
+### UpdateAdmins
+
+Updates the admins for the job registry contract. The admins are able to add jobs to the contract. Can only be called by the owner. Total number of possible admins is capped at 10.
+
+```json
+{
+  "update_admins": {
+    "admins": [
+      "terra16z3zc0dv7hfg46falyrv7vhuf2dtyr747ds5yh",
+      "terra1falyr6z3zc0dv7hfg46vtyr747ds7yh7vhuf2d"
+    ]
+  }
+}
+
+```
+
 ### SetBaseFee
 
 Sets the base fee that can be claimable by the workers. Although the contract does not enforce a minimum base fee, the Base fees set by the admin should minimally cover the transaction cost on-chain otherwise the bots will lose money running the upkeep.
@@ -71,5 +87,17 @@ Sets the base fee that can be claimable by the workers. Although the contract do
       }
     ]
   }
+}
+```
+
+
+### UpdateAdmins
+Update admins. Only admins can add a job to the registry
+
+```
+{
+    "update_admins": {
+        "admins": ["terra1eqrnp2h43u0s7nssv6f68ccmdpywdaz2y76yee"]
+    }
 }
 ```

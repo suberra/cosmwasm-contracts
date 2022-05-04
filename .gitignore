@@ -8,3 +8,6 @@ artifacts/
 
 # code coverage
 tarpaulin-report.*
+
+# config files from deployment
+bombay-12.json

@@ -420,18 +420,26 @@ fn withdraw_streams() {
     // 50% streamed
     env.block.time = Timestamp::from_seconds(start_time + HOUR_SECONDS + 500);
 
-    // Charlie cannot withdraw alice-bob's stream
+    // Charlie can help withdraw/settle alice-bob's stream
     let msg = ExecuteMsg::Withdraw {
         stream_id: 1u64,
         amount: Some(Uint128::from(1u64)),
     };
 
     let info = mock_info("charlie", &[]);
-    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap_err();
-    match res {
-        ContractError::Unauthorized {} => {}
-        _ => panic!("Must return authorized error, got {:?}", res),
-    }
+    let res = execute(deps.as_mut(), env.clone(), info, msg).unwrap();
+    assert_eq!(
+        res.messages,
+        vec![SubMsg::new(CosmosMsg::Wasm(WasmMsg::Execute {
+            contract_addr: "cw20-token-a".to_string(),
+            msg: to_binary(&Cw20ExecuteMsg::Transfer {
+                recipient: "bob".to_string(),
+                amount: Uint128::from(1u128)
+            })
+            .unwrap(),
+            funds: vec![],
+        }))]
+    );
 
     // Bob cannot withdraw more than streamed
     let msg = ExecuteMsg::Withdraw {
@@ -481,7 +489,7 @@ fn withdraw_streams() {
             contract_addr: "cw20-token-a".to_string(),
             msg: to_binary(&Cw20ExecuteMsg::Transfer {
                 recipient: "bob".to_string(),
-                amount: Uint128::from(300_000_000u128)
+                amount: Uint128::from(299_999_999u128)
             })
             .unwrap(),
             funds: vec![],

@@ -20,4 +20,7 @@ pub enum ContractError {
 
     #[error("Job has insufficient credits")]
     JobInsufficientCredits,
+
+    #[error("Invalid Param")]
+    InvalidParam,
 }

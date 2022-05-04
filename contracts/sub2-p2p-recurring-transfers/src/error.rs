@@ -32,4 +32,10 @@ pub enum ContractError {
 
     #[error("No job registry found")]
     NoJobRegistry {},
+
+    #[error("P2P contract is frozen.")]
+    Frozen {},
+
+    #[error("P2P contract is paused.")]
+    Paused {},
 }

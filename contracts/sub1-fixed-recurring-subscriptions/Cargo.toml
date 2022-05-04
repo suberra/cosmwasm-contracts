@@ -1,12 +1,13 @@
 [package]
-authors = ["Suberra Labs <tech@suberra.io>"]
-description = "Fixed Recurring Subscription Contract Standard created by Team Suberra"
-documentation = "https://suberra.gitbook.io/suberra/xezYp5ysfgonkGqDhddT/"
-edition = "2018"
-homepage = "https://suberra.io"
 name = "sub1-fixed-recurring-subscriptions"
-repository = "https://github.com/Suberra/suberra-contracts"
+description = "Fixed recurring subscription contract"
 version = "0.2.1"
+authors = ["Suberra Labs <tech@suberra.io>"]
+edition = "2018"
+repository = "https://github.com/Suberra/suberra-contracts"
+homepage = "https://suberra.io"
+documentation = "https://docs.suberra.io"
+license = "GPL-3.0-or-later"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -59,5 +60,5 @@ terra-cosmwasm = {version = "2.2.0"}
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/rust-optimizer:0.12.3
+  cosmwasm/rust-optimizer:0.12.5
 """

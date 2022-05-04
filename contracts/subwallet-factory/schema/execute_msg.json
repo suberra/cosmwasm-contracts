@@ -13,6 +13,46 @@
         }
       },
       "additionalProperties": false
+    },
+    {
+      "type": "object",
+      "required": [
+        "update_config"
+      ],
+      "properties": {
+        "update_config": {
+          "type": "object",
+          "properties": {
+            "new_anchor_market_contract": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "new_aterra_token_addr": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "new_owner": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "new_subwallet_code_id": {
+              "type": [
+                "integer",
+                "null"
+              ],
+              "format": "uint64",
+              "minimum": 0.0
+            }
+          }
+        }
+      },
+      "additionalProperties": false
     }
   ]
 }

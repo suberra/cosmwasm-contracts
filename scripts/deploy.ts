@@ -19,6 +19,7 @@ import {
   getCreatedSubscriptions,
   getIsSubscribed,
   getSubwallet,
+  createRecurringTransferMsgs
 } from "./suberra_sdk";
 
 const ARTIFACTS_PATH = "../artifacts";
@@ -116,11 +117,14 @@ async function initContract(client: Client, name: string, initMsg: object) {
 
   await linkContracts(client);
 
-  // User & Merchants actions
+  // User & Merchants actions (comment out if you do not want to run the integration tests)
   // await createSubwallet(client);
   // await depositSubwallet(client);
   // await createSubscriptionProduct(client);
   // await subscribeToProduct(client);
+
+  // create recurring transfer
+  await createRecurringTransfer(client);
 })();
 
 //----------------------------------------------------------------------------------------
@@ -141,7 +145,7 @@ async function uploadContracts(client: Client) {
 
   let file: keyof typeof SUBERRA_CONTRACTS;
   for (file in SUBERRA_CONTRACTS) {
-    console.log(`\tUploading ${file}...`);
+    console.log(`\tUploading ${file} on ${client.terra.config.chainID}...`);
 
     const name = SUBERRA_CONTRACTS[file];
     if (!deployedState[`${name}_code_id`]) {
@@ -225,6 +229,8 @@ async function initContracts(client: Client) {
     console.log("Missing subwallet_factory dependencies", deployedState["subwallet_code_id"], config.anchor_market_contract, config.aterra_token_contract)
   }
 
+
+  // deploys the product subscription contract
   if (
     deployedState["subscription_product_code_id"] &&
     deployedState["jobs_registry_contract"]
@@ -233,15 +239,17 @@ async function initContracts(client: Client) {
       product_code_id: deployedState["subscription_product_code_id"],
       protocol_fee_bps: 0, // 0% fee
       min_protocol_fee: "0", // $0
-      min_amount_per_interval: "5000000", // $5
+      min_amount_per_interval: "4000000", // $4
+      min_unit_interval_hour: 24,
       fee_address: client.wallet.key.accAddress, // Send to self
       job_registry_address: deployedState["jobs_registry_contract"],
     });
   }
 
+  // deploys the p2p contract
   if (deployedState["jobs_registry_contract"]) {
     await initContract(client, "p2p", {
-      minimum_interval: 3600, // 1hr for testing
+      minimum_interval: 86400, // 1 day
       minimum_amount_per_interval: "10000000", // $10
       job_registry_contract: deployedState["jobs_registry_contract"],
       fee_bps: 0, // 0% fees
@@ -346,7 +354,8 @@ async function depositSubwallet(client: Client) {
       return;
     }
 
-    const deposit_usd_amount = 100;
+    // deposit $20 into the subwallet for testing
+    const deposit_usd_amount = 20;
     console.log(
       `\t Depositing $${deposit_usd_amount} into subwallet: ${chalk.cyan(subwallet)}`
     );
@@ -418,9 +427,8 @@ async function createSubscriptionProduct(client: Client) {
             product_info: {
               receiver_address: client.wallet.key.accAddress,
               unit_amount: "10000000", // $10
-              initial_amount: "5000000", // $5
+              initial_amount: "1000000", // $10
               unit_interval_hour: 1,
-              max_amount_chargeable: "20000000", // $20
               additional_grace_period_hour: 1,
               uri: "",
               admins: [client.wallet.key.accAddress],
@@ -497,4 +505,44 @@ async function subscribeToProduct(client: Client) {
   } catch (e: any) {
     console.log(chalk.red(`\t\t Failed to subscribe, ${chalk.red(e?.rawLog || e)}`));
   }
+}
+
+
+async function createRecurringTransfer(client: Client) {
+  const contracts = readSuberraContracts(client.terra.config.chainID);
+  console.log(chalk.blue(`7. Create recurring transfer`));
+
+  try {
+
+    const subwallet = await getSubwallet(
+      client.terra,
+      contracts.subwallet_factory_contract,
+      client.wallet.key.accAddress
+    );
+
+
+    if (!subwallet) {
+      console.log(chalk.gray(`\t\t No subwallet exists, skipping`));
+      return;
+    }
+
+    const p2pContract = contracts.p2p_contract;
+
+    console.log(`\t Attempting to create recurring transfer`);
+
+    const tx = await performTransaction(
+      client.terra,
+      client.wallet,
+      createRecurringTransferMsgs(client.wallet.key.accAddress, subwallet, p2pContract, "terra1qqr3cq5l7d85vtm0fvpt795urf9xujhyc88kw7")
+
+    );
+
+    console.log(`\t\t Recurring transfer created! ${chalk.green(`Tx: ${tx.txhash}`)}`);
+    console.log(tx.logs);
+
+
+  } catch (e: any) {
+    console.log(chalk.red(`\t\t Failed to create recurring transfer:${chalk.red(e?.rawLog || e)}`));
+  }
+
 }

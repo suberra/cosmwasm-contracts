@@ -5,8 +5,8 @@ use crate::state::{read_config, retrieve_address, store_address, store_config};
 #[cfg(not(feature = "library"))]
 use cosmwasm_std::entry_point;
 use cosmwasm_std::{
-    attr, to_binary, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, ReplyOn, Response,
-    StdError, StdResult, SubMsg, WasmMsg,
+    attr, to_binary, Attribute, Binary, Deps, DepsMut, Empty, Env, MessageInfo, Reply, ReplyOn,
+    Response, StdError, StdResult, SubMsg, WasmMsg,
 };
 
 use protobuf::Message;
@@ -27,7 +27,7 @@ pub fn instantiate(
         deps.storage,
         &Config {
             subwallet_code_id: msg.subwallet_code_id,
-            contract_owner: info.sender,
+            owner: info.sender,
             anchor_market_contract: deps
                 .api
                 .addr_validate(msg.anchor_market_contract.as_str())?,
@@ -45,6 +45,20 @@ pub fn execute(
     msg: ExecuteMsg,
 ) -> Result<Response<Empty>, ContractError> {
     match msg {
+        ExecuteMsg::UpdateConfig {
+            new_subwallet_code_id,
+            new_owner,
+            new_anchor_market_contract,
+            new_aterra_token_addr,
+        } => update_config(
+            deps,
+            env,
+            info,
+            new_owner,
+            new_subwallet_code_id,
+            new_anchor_market_contract,
+            new_aterra_token_addr,
+        ),
         ExecuteMsg::CreateAccount {} => execute_create_account(deps, env, info),
     }
 }
@@ -69,30 +83,59 @@ pub fn migrate(_deps: DepsMut, _env: Env, _msg: MigrateMsg) -> Result<Response, 
 ///
 ///  * **info** is the object of type [`MessageInfo`]
 ///
-///  * **anchor_market_contract** is the contract address of the Anchor Money Markets contract of type [`String`].
+///  * **new_owner** is the address of the new owner of type [`Option<String>`]. Will only change if the value is not null.
 ///
-/// * **aterra_token_addr** is the contract address of the Anchor Token Contract of type [`String`].
+///  * **anchor_market_contract** is the contract address of the Anchor Money Markets contract of type[`Option<String>`]. Will only change if the value is not null.
+///
+/// * **aterra_token_addr** is the contract address of the Anchor Token Contract of type [`Option<String>`]. Will only change if the value is not null.
 pub fn update_config(
     deps: DepsMut,
     _env: Env,
     info: MessageInfo,
-    anchor_market_contract: String,
-    aterra_token_addr: String,
+    new_owner: Option<String>,
+    new_subwallet_code_id: Option<u64>,
+    new_anchor_market_contract: Option<String>,
+    new_aterra_token_addr: Option<String>,
 ) -> Result<Response, ContractError> {
     let mut config: Config = read_config(deps.storage)?;
     // permission check
-    if info.sender != config.contract_owner {
+    if info.sender != config.owner {
         return Err(ContractError::Unauthorized {});
     }
 
-    config.anchor_market_contract = deps.api.addr_validate(anchor_market_contract.as_str())?;
-    config.aterra_token_addr = deps.api.addr_validate(aterra_token_addr.as_str())?;
+    let mut attributes: Vec<Attribute> = vec![attr("method", "update_config")];
+
+    if let Some(new_subwallet_code_id) = new_subwallet_code_id {
+        config.subwallet_code_id = new_subwallet_code_id;
+        attributes.push(attr(
+            "new_subwallet_code_id",
+            new_subwallet_code_id.to_string(),
+        ));
+    }
+
+    if let Some(new_owner) = new_owner {
+        config.owner = deps.api.addr_validate(new_owner.as_str())?;
+        attributes.push(attr("new_owner", new_owner));
+    }
+
+    if let Some(new_anchor_market_contract) = new_anchor_market_contract {
+        config.anchor_market_contract = deps
+            .api
+            .addr_validate(new_anchor_market_contract.as_str())?;
+        attributes.push(attr(
+            "new_anchor_market_contract",
+            new_anchor_market_contract,
+        ));
+    }
+
+    if let Some(new_aterra_token_addr) = new_aterra_token_addr {
+        config.aterra_token_addr = deps.api.addr_validate(new_aterra_token_addr.as_str())?;
+        attributes.push(attr("new_aterra_token_addr", new_aterra_token_addr));
+
+    };
 
     store_config(deps.storage, &config)?;
-    Ok(Response::new().add_attributes(vec![
-        attr("method", "update_config"),
-        attr("result", "success"),
-    ]))
+    Ok(Response::new().add_attributes(attributes))
 }
 
 /// Creates an account for a given address. Function will initialise a new subwallet for the user and add it to the registry.
@@ -121,7 +164,7 @@ pub fn execute_create_account(
     let sub_msg: Vec<SubMsg> = vec![SubMsg {
         id: INSTANTIATE_SUBWALLET_REPLY_ID,
         msg: WasmMsg::Instantiate {
-            admin: Some(config.contract_owner.to_string()),
+            admin: Some(config.owner.to_string()),
             code_id: config.subwallet_code_id,
             funds: vec![],
             label: "create_subwallet".to_string(),

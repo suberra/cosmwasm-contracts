@@ -8,6 +8,10 @@ use cw_storage_plus::{Index, IndexList, IndexedMap, Item, MultiIndex, U64Key};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: Addr,
+    // flag to control if contract can receive more agreements creation
+    pub is_paused: bool,
+    /// once the contract is frozen, then no further transfers can be made and no agreements can be created. Intended to be a circuit-breaker measure
+    pub is_frozen: bool,
     pub job_registry_contract: Option<Addr>,
     pub minimum_interval: u64,
     pub minimum_amount_per_interval: Uint256,

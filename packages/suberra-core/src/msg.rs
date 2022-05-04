@@ -9,7 +9,7 @@ pub struct SubwalletInstantiateMsg {
     pub mutable: bool,
     pub stable_denom: String,
     pub owner_address: String,
-    pub subwallet_factory_addr: String
+    pub subwallet_factory_addr: String,
 }
 
 //  - receiver_address: address that will receive the payments

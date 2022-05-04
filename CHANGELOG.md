@@ -4,9 +4,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to
 [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-# 0.2.2
-* `sub2-p2p-recurring-payments`: Added `last_charged` timestamp to p2p agreements
+# 0.2.3 
 
+## Added
+* `subwallet_factory`: Added `UpdateConfig`
+* `product_factory`: Added minimum unit interval hours
+* `job_registry`: Added admins, which are a set of addresses that can add jobs to the job registry contracts
+* `sub1-fixed-recurring-subscriptions`: Freeze and Pause feature
+* `sub2-p2p-recurring-transfers`: Freeze and Pause feature
+* 
+### Changed
+* `sub1` and `sub2`: `can_work` now returns a false if the contract is frozen
+* `token-stream`: Allow anyone to withdraw/settle a stream
+
+# 0.2.2 (Audited)
+* `sub2-p2p-recurring-payments`: Added `last_charged` timestamp to p2p agreements
 
 # 0.2.1
 

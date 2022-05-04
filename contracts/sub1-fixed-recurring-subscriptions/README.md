@@ -51,6 +51,23 @@ pub struct SubscriptionInfo {
 }
 ```
 
+### Config
+
+```rust
+pub struct Config {
+    pub owner_address: Addr,
+    pub receiver_address: Addr,
+    pub additional_grace_period: u64,
+    pub unit_interval: Timestamp,
+    pub unit_amount: Uint256,
+    pub initial_amount: Uint256,
+    pub is_paused: bool,
+    pub is_frozen: bool,
+    pub uri: String,
+    pub factory_address: Addr,
+}
+```
+
 ## ExecuteMsg
 
 ### `update_config`
@@ -68,6 +85,20 @@ Updates the contract variables
         "additional_grace_period_hour" : 24,
         "initial_amount" : "1000000",
         "uri": "https://some_bucket.com/data.json"
+    }
+}
+```
+
+### `update_admins`
+
+Update the admins on the contract. Admins can perform most privilleged functions. This function can only be called by the `owner`
+
+```json
+{
+    "update_admins": {
+        "admins": [
+            "terra1..."
+        ]
     }
 }
 ```
@@ -104,6 +135,27 @@ Charge a particular payer who's subscription payment is dued.
     "payer_address": "terra1...",
 }
 ```
+
+### TogglePause
+
+ Toggles the `is_paused` variable in the contract. if the `is_paused` variable was `false`, then this function should toggle it to true. Same applies vice-versa.
+
+```json
+{
+    "toggle_pause" : {}
+}
+```
+
+### ToggleFreeze
+
+ Toggles the `is_frozen` variable in the contract. if the `is_paused` variable was `false`, then this function should toggle it to true. Same applies vice-versa. Once frozen, only admin features (`update_config` and `update_admins`) are allowed. This function may caused disruptive behavior since charges cannot proceed on a frozen contract. Users still have their `SubscriptionInfo` stored on the contract. However, as charge is not allowed, it may result in subscription expiring.
+
+```json
+{
+    "toggle_freeze" : {}
+}
+```
+
 
 ## Queries
 

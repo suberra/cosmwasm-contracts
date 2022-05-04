@@ -1,12 +1,13 @@
 [package]
 name = "subwallet-factory"
-version = "0.2.1"
+description = "Suberra wallet factory contract"
+version = "0.2.3"
 authors = ["Suberra Labs <tech@suberra.io>"]
 edition = "2018"
-description = "Suberra wallet factory contract"
 repository = "https://github.com/Suberra/suberra-contracts"
 homepage = "https://suberra.io"
-documentation = "https://suberra.gitbook.io/suberra/xezYp5ysfgonkGqDhddT/"
+documentation = "https://docs.suberra.io"
+license = "GPL-3.0-or-later"
 
 exclude = [
   # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
@@ -42,7 +43,7 @@ schemars = "0.8.1"
 serde = { version = "1.0.103", default-features = false, features = ["derive"] }
 snafu = { version = "0.6.3" }
 thiserror = { version = "1.0.26" }
-suberra-core = { version = "0.2.0", path = "../../packages/suberra-core" }
+suberra-core = { version = "0.2.1", path = "../../packages/suberra-core" }
 protobuf = { version = "2", features = ["with-bytes"] }
 
 [dev-dependencies]
@@ -54,5 +55,5 @@ subwallet = {path = "../subwallet"}
 optimize = """docker run --rm -v "$(pwd)":/code \
   --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
   --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
-  cosmwasm/rust-optimizer:0.12.3
+  cosmwasm/rust-optimizer:0.12.5
 """

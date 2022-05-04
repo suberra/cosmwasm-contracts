@@ -10,6 +10,8 @@ use serde::{Deserialize, Serialize};
 pub struct Config {
     /// The Contract address that used for controls settings for factory, pools and tokenomics contracts
     pub owner: Addr,
+    /// boolean flag that indicates if the factory is restricted. If it is, only the owner can create new products
+    pub is_restricted: bool,
     /// Code identifier of the product
     pub product_code_id: u64,
     /// protocol fee in basis points. If set, this charges a certain percentage on the amount transacted for all subscriptions contract
@@ -18,6 +20,8 @@ pub struct Config {
     pub min_protocol_fee: Uint256,
     /// minimum amount per interval in UST
     pub min_amount_per_interval: Uint256,
+    /// minimum unit interval in hours
+    pub min_unit_interval_hour: u64,
     /// address that will be receiving the protocol fees
     pub fee_address: Addr,
     /// address for the job registry contract

@@ -11,18 +11,19 @@ Anyone can create a product. When a user executes this operation, it creates a P
 ```json
 {
     "create_product" : {
-        "receiver_address" : "terra1...",
-        "unit_amount" : "100000",
-        "initial_amount" : "100000",
-        "unit_interval_hour" : 72,
-        "max_amount_chargeable" : "100000",
-        "additional_grace_period_hour" : 48,
-        "uri": "https://metadata.link/json",
-        "admins" : [],
-        "mutable": false
+        "product_info": {
+            "receiver_address": "terra14q93cklzvskelyyq85s7x38rsmhemvwft2t27q",
+            "unit_amount" : "4000000",
+            "initial_amount" : "4000000",
+            "unit_interval_hour" : 24,
+            "max_amount_chargeable" : "4000000",
+            "additional_grace_period_hour" : 48,
+            "uri": "https://metadata.link/json",
+            "admins" : [],
+            "mutable": false
+        }
     }
 }
-
 ```
 
 ### `update_config`

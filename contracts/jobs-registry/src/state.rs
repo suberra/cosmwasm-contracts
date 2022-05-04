@@ -9,7 +9,19 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Config {
     pub owner: Addr,
+    pub admins: Vec<Addr>,
     pub base_fee: Vec<Coin>,
+}
+
+// helper functions
+impl Config {
+    pub fn is_owner(&self, addr: &Addr) -> bool {
+        self.owner == addr.as_ref()
+    }
+
+    pub fn is_admin(&self, addr: &Addr) -> bool {
+        self.admins.iter().any(|a| a == addr)
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

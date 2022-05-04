@@ -1,7 +1,12 @@
 [package]
 name = "suberra-core"
 version = "0.2.1"
+authors = ["Suberra Labs <tech@suberra.io>"]
 edition = "2018"
+repository = "https://github.com/Suberra/suberra-contracts"
+homepage = "https://suberra.io"
+documentation = "https://docs.suberra.io"
+license = "GPL-3.0-or-later"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

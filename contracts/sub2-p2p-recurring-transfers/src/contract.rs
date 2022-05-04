@@ -30,7 +30,6 @@ pub fn instantiate(
     info: MessageInfo,
     msg: InstantiateMsg,
 ) -> Result<Response, ContractError> {
-
     let job_registry_contract = match msg.job_registry_contract {
         Some(job_contract) => Some(deps.api.addr_validate(&job_contract)?),
         None => None,
@@ -47,6 +46,8 @@ pub fn instantiate(
 
     let config = Config {
         minimum_interval: msg.minimum_interval,
+        is_paused: false,
+        is_frozen: false,
         job_registry_contract,
         owner: info.sender.clone(),
         fee_address,
@@ -80,9 +81,11 @@ pub fn execute(
         } => try_create_agreement(
             deps, env, info, receiver, amount, start_at, end_at, interval,
         ),
-        ExecuteMsg::Transfer { agreement_id } => try_transfer(deps, env, info, agreement_id, None),
-        ExecuteMsg::CancelAgreement { agreement_id } => try_cancel(deps, info, agreement_id),
-        ExecuteMsg::TerminateAgreement { agreement_id } => try_terminate(deps, env, agreement_id),
+        ExecuteMsg::Transfer { agreement_id } => try_transfer(deps, env, agreement_id, None),
+        ExecuteMsg::CancelAgreement { agreement_id } => try_cancel(deps, env, info, agreement_id),
+        ExecuteMsg::TerminateAgreement { agreement_id } => {
+            try_terminate(deps, env, info, agreement_id)
+        }
         ExecuteMsg::Work { payload } => {
             let payload: WorkPayload = from_binary(&payload).unwrap();
             try_work(deps, env, info, payload.agreement_id)
@@ -99,6 +102,7 @@ pub fn execute(
             let api = deps.api;
             update_config(
                 deps,
+                env,
                 info,
                 optional_addr_validate(api, job_registry_contract)?,
                 minimum_interval,
@@ -109,6 +113,8 @@ pub fn execute(
                 max_fee,
             )
         }
+        ExecuteMsg::ToggleFreeze {} => try_toggle_freeze(deps, env, info),
+        ExecuteMsg::TogglePause {} => try_toggle_pause(deps, env, info),
     }
 }
 
@@ -129,6 +135,17 @@ pub fn try_create_agreement(
     end_at: Option<u64>,
     interval: u64,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    // when paused, no future agreements can be created
+    if config.is_paused {
+        return Err(ContractError::Paused {});
+    }
+
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
+    }
+
     let receiver_addr = deps.api.addr_validate(&receiver)?;
     if receiver_addr == info.sender {
         return Err(ContractError::CannotSetOwnAccount {});
@@ -173,6 +190,7 @@ pub fn try_create_agreement(
     let mut messages: Vec<CosmosMsg> = vec![];
     let mut attributes: Vec<Attribute> = vec![
         attr("method", "create_agreement"),
+        attr("module_contract_address", env.contract.address.to_string()),
         attr("agreement_id", agreement_id.to_string()),
         attr("from", info.sender.to_string()),
         attr("to", receiver_addr.to_string()),
@@ -209,14 +227,17 @@ fn attempt_charge(
     messages: &mut Vec<CosmosMsg>,
     attributes: &mut Vec<Attribute>,
 ) -> Result<(), ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
+    }
+
     let status = compute_status(agreement, &env.block);
     let has_charge = has_charge(agreement, status, &env.block);
 
     if !has_charge {
         return Err(ContractError::ZeroTransferableAmount {});
     }
-
-    let config = CONFIG.load(deps.storage)?;
 
     // Update next due date
     agreement.interval_due_at = agreement.interval_due_at.plus_seconds(agreement.interval);
@@ -252,15 +273,68 @@ fn attempt_charge(
     Ok(())
 }
 
+/// toggles the freeze flag.  Can only be called by the owner.
+pub fn try_toggle_freeze(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    if config.owner != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let new_flag = !config.is_frozen;
+    config.is_frozen = new_flag;
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("method", "toggle_freeze"),
+        attr("module_contract_address", env.contract.address.to_string()),
+        attr("is_frozen", new_flag.to_string()),
+    ]))
+}
+
+/// toggles the pause flag. Can only be called by the owner
+pub fn try_toggle_pause(
+    deps: DepsMut,
+    env: Env,
+    info: MessageInfo,
+) -> Result<Response, ContractError> {
+    let mut config = CONFIG.load(deps.storage)?;
+    if config.owner != info.sender {
+        return Err(ContractError::Unauthorized {});
+    }
+
+    let new_flag = !config.is_paused;
+    config.is_paused = new_flag;
+
+    CONFIG.save(deps.storage, &config)?;
+
+    Ok(Response::new().add_attributes(vec![
+        attr("method", "toggle_paused"),
+        attr("module_contract_address", env.contract.address.to_string()),
+        attr("is_paused", new_flag.to_string()),
+    ]))
+}
+
 /// attempts to cancel an agreement given sender and recipient address.
 /// Does not refund outstanding balance to receipient since this contract does not lock up capital.
 /// Senders are assumed to be doing regular transfers, either by themselves or relying on Suberra Workers.
 /// only the user who created the agreement can cancel the agreement
 pub fn try_cancel(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     agreement_id: u64,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
+    }
+
     let agreement = match agreements().may_load(deps.storage, U64Key::from(agreement_id))? {
         Some(agreement) => agreement,
         None => return Err(ContractError::AgreementNotFound {}),
@@ -274,6 +348,7 @@ pub fn try_cancel(
 
     Ok(Response::new().add_attributes(vec![
         attr("method", "cancel_agreement"),
+        attr("module_contract_address", env.contract.address.to_string()),
         attr("agreement_id", agreement_id.to_string()),
     ]))
 }
@@ -281,8 +356,15 @@ pub fn try_cancel(
 pub fn try_terminate(
     deps: DepsMut,
     env: Env,
+    info: MessageInfo,
     agreement_id: u64,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if config.is_frozen && info.sender != config.owner {
+        return Err(ContractError::Frozen {});
+    }
+
     let agreement = match agreements().may_load(deps.storage, U64Key::from(agreement_id))? {
         Some(agreement) => agreement,
         None => return Err(ContractError::AgreementNotFound {}),
@@ -297,6 +379,7 @@ pub fn try_terminate(
 
     Ok(Response::new().add_attributes(vec![
         attr("method", "terminate_agreement"),
+        attr("module_contract_address", env.contract.address.to_string()),
         attr("agreement_id", agreement_id.to_string()),
     ]))
 }
@@ -304,10 +387,15 @@ pub fn try_terminate(
 pub fn try_transfer(
     deps: DepsMut,
     env: Env,
-    _info: MessageInfo,
     agreement_id: u64,
     additional_message: Option<CosmosMsg>,
 ) -> Result<Response, ContractError> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
+    }
+
     let key = U64Key::from(agreement_id);
     let mut agreement = match agreements().may_load(deps.storage, key.clone())? {
         Some(v) => v,
@@ -317,6 +405,7 @@ pub fn try_transfer(
     let mut messages: Vec<CosmosMsg> = vec![];
     let mut attributes: Vec<Attribute> = vec![
         attr("method", "execute_transfer"),
+        attr("module_contract_address", env.contract.address.to_string()),
         attr("agreement_id", agreement_id.to_string()),
     ];
 
@@ -340,6 +429,11 @@ pub fn try_work(
     agreement_id: u64,
 ) -> Result<Response, ContractError> {
     let config: Config = CONFIG.load(deps.storage)?;
+
+    if config.is_frozen {
+        return Err(ContractError::Frozen {});
+    }
+
     if config.job_registry_contract.is_none() {
         return Err(ContractError::NoJobRegistry {});
     };
@@ -349,7 +443,6 @@ pub fn try_work(
     try_transfer(
         deps,
         env,
-        info,
         agreement_id,
         Some(CosmosMsg::Wasm(WasmMsg::Execute {
             contract_addr: config.job_registry_contract.unwrap().to_string(),
@@ -364,6 +457,7 @@ pub fn try_work(
 #[allow(clippy::too_many_arguments)]
 pub fn update_config(
     deps: DepsMut,
+    env: Env,
     info: MessageInfo,
     job_registry_contract: Option<Addr>,
     new_minimum_interval: Option<u64>,
@@ -375,7 +469,10 @@ pub fn update_config(
 ) -> Result<Response, ContractError> {
     let mut config: Config = CONFIG.load(deps.storage)?;
 
-    let mut attributes: Vec<Attribute> = vec![attr("method", "update_config")];
+    let mut attributes: Vec<Attribute> = vec![
+        attr("method", "update_config"),
+        attr("module_contract_address", env.contract.address.to_string()),
+    ];
 
     // permission check
     if info.sender != config.owner {
@@ -553,6 +650,13 @@ pub fn query_agreement(deps: Deps, env: Env, agreement_id: u64) -> StdResult<Agr
 
 /// query_can_work is called by the Worker nodes - they will query intervalically and only perform work when there is a valid work to be done
 fn query_can_work(deps: Deps, env: Env, agreement_id: u64) -> StdResult<bool> {
+    let config = CONFIG.load(deps.storage)?;
+
+    if config.is_frozen {
+        // returns false if the contract is frozen as no work can be done
+        return Ok(false);
+    }
+
     let agreement = match agreements().may_load(deps.storage, U64Key::from(agreement_id))? {
         Some(v) => v,
         None => return Ok(false),

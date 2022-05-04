@@ -18,7 +18,8 @@ fn subscribe_with_fees() {
     }]);
 
     // test with 1% fee
-    deps.querier.with_fee(100, Uint256::zero());
+    deps.querier
+        .with_fee(100, Uint256::zero(), Uint256::from(10_000_000u64), 24u64);
 
     let msg = ProductInstantiateMsg {
         receiver_address: "merchant".to_string(),
@@ -122,7 +123,8 @@ fn test_charge() {
     }]);
 
     // test with 0.5% fee
-    deps.querier.with_fee(50, Uint256::zero());
+    deps.querier
+        .with_fee(50, Uint256::zero(), Uint256::from(10_000_000u64), 24u64);
 
     let msg = ProductInstantiateMsg {
         receiver_address: "merchant".to_string(),
@@ -238,7 +240,12 @@ fn test_charge_with_min_fees() {
     }]);
 
     // test with 0.5% fee
-    deps.querier.with_fee(1, Uint256::from(100u128));
+    deps.querier.with_fee(
+        1,
+        Uint256::from(100u128),
+        Uint256::from(10_000_000u64),
+        24u64,
+    );
 
     let msg = ProductInstantiateMsg {
         receiver_address: "merchant".to_string(),

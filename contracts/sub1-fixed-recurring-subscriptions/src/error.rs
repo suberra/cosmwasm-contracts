@@ -33,11 +33,11 @@ pub enum ContractError {
     #[error("No job registry found")]
     NoJobRegistry {},
 
-    #[error("Operation not permitted. Contract is paused.")]
+    #[error("Subscription contract is paused.")]
     Paused {},
 
-    #[error("Operation not permitted. Contract is not paused.")]
-    Unpaused {},
+    #[error("Subscription contract is frozen.")]
+    Frozen {},
 
     #[error("Subscription cancelled")]
     SubscriptionCancelled {},
