@@ -64,6 +64,6 @@ cargo tarpaulin -o html
 
 ## License
 
-This repository is licensed under the Apache 2.0 license. See [LICENSE](./LICENSE) for full disclosure.
+This repository is licensed under the GPL v3.0 or later license. See [LICENSE](./LICENSE) for full disclosure.
 
 © 2021 Suberra
