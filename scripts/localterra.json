@@ -1,0 +1,18 @@
+{
+  "jobs_registry_code_id": 1,
+  "subwallet_code_id": 2,
+  "product_factory_code_id": 3,
+  "subscription_product_code_id": 4,
+  "p2p_code_id": 5,
+  "subwallet_factory_code_id": 6,
+  "token_stream_code_id": 7,
+  "stub_anchor_code_id": 8,
+  "aterra_token_code_id": 9,
+  "jobs_registry_contract": "terra18vd8fpwxzck93qlwghaj6arh4p7c5n896xzem5",
+  "stub_anchor_contract": "terra17n4dhr0t5twm7k7z8fhldlcr5txn2fj839wh5f",
+  "aterra_token_contract": "terra1f7qkgxpd36k3750647czwz4wcftkt0tyd8krra",
+  "subwallet_factory_contract": "terra1kyl8f2xkd63cga8szgkejdyvxay7mc7qpdc3c5",
+  "product_factory_contract": "terra17dkr9rnmtmu7x4azrpupukvur2crnptyfvsrvr",
+  "p2p_contract": "terra1psm5jn08l2ms7sef2pxywr42fa8pay876d0p9m",
+  "token_stream_contract": "terra1y45vkh0n6kplaeqw6ratuertapxupz53wdg6vd"
+}

@@ -1,0 +1,63 @@
+[package]
+authors = ["Suberra Labs <tech@suberra.io>"]
+description = "Fixed Recurring Subscription Contract Standard created by Team Suberra"
+documentation = "https://suberra.gitbook.io/suberra/xezYp5ysfgonkGqDhddT/"
+edition = "2018"
+homepage = "https://suberra.io"
+name = "sub1-fixed-recurring-subscriptions"
+repository = "https://github.com/Suberra/suberra-contracts"
+version = "0.2.1"
+
+exclude = [
+  # Those files are rust-optimizer artifacts. You might want to commit them for convenience but they should not be part of the source code publication.
+  "contract.wasm",
+  "hash.txt",
+]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[profile.release]
+codegen-units = 1
+debug = false
+debug-assertions = false
+incremental = false
+lto = true
+opt-level = 3
+overflow-checks = true
+panic = 'abort'
+rpath = false
+
+[features]
+# for more explicit tests, cargo test --features=backtraces
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+
+[dependencies]
+admin-core = {version = "0.2.1", features = [
+  "library",
+], path = "../admin-core"}
+cosmwasm-bignumber = "2.2"
+cosmwasm-std = {version = "0.16.2"}
+cosmwasm-storage = {version = "0.16.0"}
+cw-storage-plus = "0.8.1"
+schemars = "0.8.1"
+serde = {version = "1.0.103", default-features = false, features = ["derive"]}
+snafu = {version = "0.6.3"}
+suberra-core = {version = "0.2.1", path = "../../packages/suberra-core"}
+terra-cosmwasm = "2.2.0"
+thiserror = {version = "1.0.26"}
+
+[dev-dependencies]
+cosmwasm-schema = "0.16.0"
+terra-cosmwasm = {version = "2.2.0"}
+
+[package.metadata.scripts]
+optimize = """docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  cosmwasm/rust-optimizer:0.12.3
+"""

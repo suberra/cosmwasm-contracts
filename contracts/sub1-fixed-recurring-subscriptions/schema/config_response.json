@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ConfigResponse",
+  "type": "object",
+  "required": [
+    "additional_grace_period",
+    "initial_amount",
+    "owner_address",
+    "paused",
+    "receiver_address",
+    "unit_amount",
+    "unit_interval_seconds",
+    "uri"
+  ],
+  "properties": {
+    "additional_grace_period": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "initial_amount": {
+      "$ref": "#/definitions/Uint256"
+    },
+    "owner_address": {
+      "type": "string"
+    },
+    "paused": {
+      "type": "boolean"
+    },
+    "receiver_address": {
+      "type": "string"
+    },
+    "unit_amount": {
+      "$ref": "#/definitions/Uint256"
+    },
+    "unit_interval_seconds": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "uri": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Uint256": {
+      "type": "string"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "localterra": {
+    "anchor_market_contract": "terra17n4dhr0t5twm7k7z8fhldlcr5txn2fj839wh5f",
+    "aterra_token_contract": "terra1f7qkgxpd36k3750647czwz4wcftkt0tyd8krra"
+  },
+  "bombay-12": {
+    "anchor_market_contract": "terra15dwd5mj8v59wpj0wvt233mf5efdff808c5tkal",
+    "aterra_token_contract": "terra1ajt556dpzvjwl0kl5tzku3fc3p3knkg9mkv8jl"
+  }
+}

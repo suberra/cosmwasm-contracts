@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "ProductInstantiateMsg",
+  "type": "object",
+  "required": [
+    "admins",
+    "factory_address",
+    "initial_amount",
+    "mutable",
+    "owner",
+    "receiver_address",
+    "unit_amount",
+    "unit_interval_hour",
+    "uri"
+  ],
+  "properties": {
+    "additional_grace_period_hour": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "admins": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "factory_address": {
+      "type": "string"
+    },
+    "initial_amount": {
+      "$ref": "#/definitions/Uint256"
+    },
+    "max_amount_chargeable": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "mutable": {
+      "type": "boolean"
+    },
+    "owner": {
+      "type": "string"
+    },
+    "receiver_address": {
+      "type": "string"
+    },
+    "unit_amount": {
+      "$ref": "#/definitions/Uint256"
+    },
+    "unit_interval_hour": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "uri": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Uint256": {
+      "type": "string"
+    }
+  }
+}

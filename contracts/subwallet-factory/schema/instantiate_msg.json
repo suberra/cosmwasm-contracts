@@ -1,0 +1,23 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "anchor_market_contract",
+    "aterra_token_addr",
+    "subwallet_code_id"
+  ],
+  "properties": {
+    "anchor_market_contract": {
+      "type": "string"
+    },
+    "aterra_token_addr": {
+      "type": "string"
+    },
+    "subwallet_code_id": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  }
+}

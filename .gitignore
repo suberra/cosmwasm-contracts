@@ -1,0 +1,10 @@
+**/target
+.DS_Store
+**/Cargo.lock
+**/node_modules
+**/.env
+artifacts/
+!artifacts/astroport_token.wasm
+
+# code coverage
+tarpaulin-report.*

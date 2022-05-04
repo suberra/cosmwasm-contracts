@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "InstantiateMsg",
+  "type": "object",
+  "required": [
+    "minimum_interval"
+  ],
+  "properties": {
+    "fee_address": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "fee_bps": {
+      "type": [
+        "integer",
+        "null"
+      ],
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "job_registry_contract": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "max_fee": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "minimum_interval": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    }
+  },
+  "definitions": {
+    "Uint256": {
+      "type": "string"
+    }
+  }
+}

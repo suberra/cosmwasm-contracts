@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "SubscriptionInfoResponse",
+  "type": "object",
+  "required": [
+    "created_at",
+    "interval_end_at",
+    "is_active",
+    "is_cancelled",
+    "last_charged",
+    "subscriber"
+  ],
+  "properties": {
+    "amount_chargeable": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Uint256"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "created_at": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "discount_per_interval": {
+      "anyOf": [
+        {
+          "$ref": "#/definitions/Discount"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "interval_end_at": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "is_active": {
+      "type": "boolean"
+    },
+    "is_cancelled": {
+      "type": "boolean"
+    },
+    "last_charged": {
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
+    },
+    "subscriber": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Discount": {
+      "description": "Discount Struct to store Discount information per subscriber * `amount`: Discount amount to be applied. * `expiry`: Optional unix timestamp (seconds). If specified, discount is no longer applied when Discount expires",
+      "type": "object",
+      "required": [
+        "amount"
+      ],
+      "properties": {
+        "amount": {
+          "$ref": "#/definitions/Uint256"
+        }
+      }
+    },
+    "Uint256": {
+      "type": "string"
+    }
+  }
+}

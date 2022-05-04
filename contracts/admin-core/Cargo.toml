@@ -1,0 +1,33 @@
+[package]
+name = "admin-core"
+version = "0.2.1"
+authors = ["Suberra Labs <hello@suberra.io>"]
+edition = "2018"
+description = "Implementation of an cw1 contract with owner-admins separation"
+license = "Apache-2.0"
+repository = "https://github.com/Suberra/suberra-contracts"
+homepage = "https://suberra.io"
+documentation = "https://suberra.gitbook.io/suberra/xezYp5ysfgonkGqDhddT/"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+test-utils = []
+
+[dependencies]
+cw0 = { version = "0.8.1" }
+cw1 = { version = "0.8.1" }
+cw2 = { version = "0.8.1" }
+cosmwasm-std = { version = "0.16.2", features = ["staking"] }
+cw-storage-plus = { version = "0.8.1" }
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.23" }
+
+
+[dev-dependencies]
+cosmwasm-schema = { version = "0.16.0" }

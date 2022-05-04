@@ -1,0 +1,62 @@
+[package]
+name = "subwallet"
+version = "0.2.1"
+authors = ["Suberra Labs <tech@suberra.io>"]
+edition = "2018"
+description = "Suberra wallet with features extended from cw1 proxy contract"
+license = "Apache-2.0"
+repository = "https://github.com/Suberra/suberra-contracts"
+homepage = "https://suberra.io"
+documentation = "https://suberra.gitbook.io/suberra/xezYp5ysfgonkGqDhddT/"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+backtraces = ["cosmwasm-std/backtraces"]
+# use library feature to disable all instantiate/execute/query exports
+library = []
+test-utils = []
+
+[profile.release]
+opt-level = 3
+debug = false
+rpath = false
+lto = true
+debug-assertions = false
+codegen-units = 1
+panic = 'abort'
+incremental = false
+overflow-checks = true
+
+[dependencies]
+cw0 = { version = "0.8.1" }
+cw1 = { version = "0.8.1" }
+cw2 = { version = "0.8.1" }
+admin-core = { version = "0.2.0", features = [
+  "library",
+], path = "../admin-core" }
+cw20 = { version = "0.8.1" }
+cosmwasm-std = { version = "0.16.2", features = ["staking"] }
+cosmwasm-storage = { version = "0.16.0" }
+cw-storage-plus = { version = "0.8.1" }
+schemars = "0.8.1"
+serde = { version = "1.0.103", default-features = false, features = ["derive"] }
+thiserror = { version = "1.0.23" }
+moneymarket = { git = "https://github.com/Anchor-Protocol/money-market-contracts" }
+suberra-core = { version = "0.2.0", path = "../../packages/suberra-core" }
+cosmwasm-bignumber = "2.2.0"
+
+[dev-dependencies]
+cosmwasm-schema = {  version = "0.16.0"  }
+admin-core = { version = "0.2.0", features = [
+  "library",
+  "test-utils",
+], path = "../admin-core" }
+
+[package.metadata.scripts]
+optimize = """docker run --rm -v "$(pwd)":/code \
+  --mount type=volume,source="$(basename "$(pwd)")_cache",target=/code/target \
+  --mount type=volume,source=registry_cache,target=/usr/local/cargo/registry \
+  cosmwasm/rust-optimizer:0.12.3
+"""
